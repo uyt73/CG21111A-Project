@@ -279,29 +279,26 @@ def ensureLidarOpen():
 
 
 def handleLidarCommand():
+    """
+    Perform a single LIDAR scan and render it.
+    
+    Gate on E-Stop state, then use the LIDAR library to capture one scan
+    and the CLI plot helpers to display it.
+    """
+    # 1. Enforce the E-Stop rule
     if isEstopActive():
         print("Refused: E-Stop is active")
         return
 
+    # 2. Make sure the library actually loaded
     if plot_single_scan is None:
-        print("LIDAR plot helper not available.")
+        print("LIDAR plot helper not available. Check your imports.")
         return
 
-    if performSingleScan is None:
-        print("LIDAR scan function not available.")
-        return
-
-    if not ensureLidarOpen():
-        return
-
+    # 3. Trigger the self-contained scan and plot function
+    print("Starting LIDAR scan. Please wait...")
     try:
-        scan = performSingleScan(_lidar)
-        if scan is None:
-            print("LIDAR scan returned no data.")
-            return
-
-        angles, distances, quality = scan
-        plot_single_scan((angles, distances, quality))
+        plot_single_scan()
     except Exception as e:
         print(f"LIDAR scan failed: {e}")
 
