@@ -13,9 +13,6 @@ import select
 # ---------------------------------------------------------------
 # OPTIONAL LIBRARIES
 # ---------------------------------------------------------------
-# These imports match the handout/starter naming. If your local
-# helper files use slightly different names, only these imports /
-# calls need minor adjustment.
 
 try:
     from alex_camera import cameraOpen, cameraClose, captureGreyscaleFrame, renderGreyscaleFrame
@@ -23,9 +20,9 @@ except Exception:
     cameraOpen = cameraClose = captureGreyscaleFrame = renderGreyscaleFrame = None
 
 try:
-    from lidar.alex_lidar import AlexLidar
+    from lidar.alex_lidar import lidarConnect, lidarDisconnect, performSingleScan
 except Exception:
-    AlexLidar = None
+    lidarConnect = lidarDisconnect = performSingleScan = None
 
 try:
     from lidar_example_cli_plot import plot_single_scan
@@ -44,7 +41,6 @@ _ser = None
 
 
 def openSerial():
-    """Open the serial port and wait for the Arduino to boot."""
     global _ser
     _ser = serial.Serial(PORT, BAUDRATE, timeout=5)
     print(f"Opened {PORT} at {BAUDRATE} baud. Waiting for Arduino...")
@@ -53,7 +49,6 @@ def openSerial():
 
 
 def closeSerial():
-    """Close the serial port."""
     global _ser
     if _ser and _ser.is_open:
         _ser.close()
@@ -61,7 +56,6 @@ def closeSerial():
 
 # ---------------------------------------------------------------
 # TPACKET CONSTANTS
-# (must match packets.h / Arduino code)
 # ---------------------------------------------------------------
 
 PACKET_TYPE_COMMAND  = 0
@@ -81,11 +75,11 @@ STATE_STOPPED = 1
 MAX_STR_LEN  = 32
 PARAMS_COUNT = 16
 
-TPACKET_SIZE = 1 + 1 + 2 + MAX_STR_LEN + (PARAMS_COUNT * 4)  # 100
+TPACKET_SIZE = 1 + 1 + 2 + MAX_STR_LEN + (PARAMS_COUNT * 4)
 TPACKET_FMT  = f'<BB2x{MAX_STR_LEN}s{PARAMS_COUNT}I'
 
 MAGIC = b'\xDE\xAD'
-FRAME_SIZE = len(MAGIC) + TPACKET_SIZE + 1  # 103
+FRAME_SIZE = len(MAGIC) + TPACKET_SIZE + 1
 
 
 # ---------------------------------------------------------------
@@ -93,7 +87,6 @@ FRAME_SIZE = len(MAGIC) + TPACKET_SIZE + 1  # 103
 # ---------------------------------------------------------------
 
 def computeChecksum(data: bytes) -> int:
-    """Return XOR of all bytes in data."""
     result = 0
     for b in data:
         result ^= b
@@ -101,9 +94,6 @@ def computeChecksum(data: bytes) -> int:
 
 
 def packFrame(packetType, command, data=b'', params=None):
-    """
-    Build a framed packet: MAGIC | TPacket bytes | checksum.
-    """
     if params is None:
         params = [0] * PARAMS_COUNT
 
@@ -114,7 +104,6 @@ def packFrame(packetType, command, data=b'', params=None):
 
 
 def unpackTPacket(raw):
-    """Deserialise a 100-byte TPacket into a dict."""
     fields = struct.unpack(TPACKET_FMT, raw)
     return {
         'packetType': fields[0],
@@ -125,9 +114,6 @@ def unpackTPacket(raw):
 
 
 def receiveFrame():
-    """
-    Read bytes until a valid framed packet is found.
-    """
     MAGIC_HI = MAGIC[0]
     MAGIC_LO = MAGIC[1]
 
@@ -163,7 +149,6 @@ def receiveFrame():
 
 
 def sendCommand(commandType, data=b'', params=None):
-    """Send a framed COMMAND packet to the Arduino."""
     frame = packFrame(PACKET_TYPE_COMMAND, commandType, data=data, params=params)
     _ser.write(frame)
 
@@ -176,7 +161,6 @@ _estop_state = STATE_RUNNING
 
 
 def isEstopActive():
-    """Return True if the E-Stop is currently active."""
     return _estop_state == STATE_STOPPED
 
 
@@ -185,9 +169,6 @@ def isEstopActive():
 # ---------------------------------------------------------------
 
 def printPacket(pkt):
-    """
-    Print a received TPacket in human-readable form.
-    """
     global _estop_state
 
     ptype = pkt['packetType']
@@ -231,9 +212,6 @@ def printPacket(pkt):
 # ---------------------------------------------------------------
 
 def handleColorCommand():
-    """
-    Request a color reading from the Arduino and display it.
-    """
     if isEstopActive():
         print("Refused: E-Stop is active")
         return
@@ -251,12 +229,9 @@ _frames_remaining = 5
 
 
 def handleCameraCommand():
-    """
-    Capture and display one greyscale frame.
-    """
     global _frames_remaining
 
-    if isEstopActive(): 
+    if isEstopActive():
         print("Refused: E-Stop is active")
         return
 
@@ -290,12 +265,13 @@ def ensureLidarOpen():
     if _lidar is not None:
         return True
 
-    if AlexLidar is None:
+    if lidarConnect is None:
         print("LIDAR library not available.")
         return False
 
     try:
-        _lidar = AlexLidar()
+        _lidar = lidarConnect()
+        print("LIDAR ready.")
         return True
     except Exception as e:
         print(f"LIDAR open failed: {e}")
@@ -303,9 +279,6 @@ def ensureLidarOpen():
 
 
 def handleLidarCommand():
-    """
-    Perform a single LIDAR scan and render it.
-    """
     if isEstopActive():
         print("Refused: E-Stop is active")
         return
@@ -314,15 +287,16 @@ def handleLidarCommand():
         print("LIDAR plot helper not available.")
         return
 
+    if performSingleScan is None:
+        print("LIDAR scan function not available.")
+        return
+
     if not ensureLidarOpen():
         return
 
     try:
-        # This matches the usual starter usage from the LIDAR studio.
-        scan = _lidar.get_single_scan()
+        scan = performSingleScan(_lidar)
         plot_single_scan(scan)
-    except AttributeError:
-        print("Your AlexLidar API may use a different method name than get_single_scan().")
     except Exception as e:
         print(f"LIDAR scan failed: {e}")
 
@@ -332,22 +306,17 @@ def handleLidarCommand():
 # ---------------------------------------------------------------
 
 def handleUserInput(line):
-    """
-    Dispatch user input.
-    """
-    cmd = line[0]
-
-    if cmd == 'e':
+    if line == 'e':
         print("Sending E-Stop command...")
         sendCommand(COMMAND_ESTOP, data=b'This is a debug message')
 
-    elif cmd == 'c':
+    elif line == 'c':
         handleColorCommand()
 
-    elif cmd == 'p':
+    elif line == 'p':
         handleCameraCommand()
 
-    elif cmd == 'l':
+    elif line == 'l':
         handleLidarCommand()
 
     else:
@@ -355,9 +324,6 @@ def handleUserInput(line):
 
 
 def runCommandInterface():
-    """
-    Main command loop.
-    """
     print("Sensor interface ready. Type e / c / p / l and press Enter.")
     print("Press Ctrl+C to exit.\n")
 
@@ -404,12 +370,8 @@ if __name__ == '__main__':
             pass
 
         try:
-            if _lidar is not None:
-                # Use whichever close/disconnect method your library provides.
-                if hasattr(_lidar, 'disconnect'):
-                    _lidar.disconnect()
-                elif hasattr(_lidar, 'stop'):
-                    _lidar.stop()
+            if _lidar is not None and lidarDisconnect is not None:
+                lidarDisconnect(_lidar)
         except Exception:
             pass
 
