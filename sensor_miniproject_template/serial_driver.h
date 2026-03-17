@@ -90,7 +90,6 @@ bool txEnqueue(const uint8_t *data, uint8_t len) {
         tx_head = (tx_head + 1) & TX_BUFFER_MASK;
     }
 
-    // Enable Data Register Empty interrupt so transmission starts/resumes
     UCSR0B |= (1 << UDRIE0);
 
     SREG = sreg;
