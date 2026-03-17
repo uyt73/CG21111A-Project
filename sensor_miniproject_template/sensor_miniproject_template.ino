@@ -49,9 +49,6 @@ static void sendStatus(TState state) {
 // E-Stop state machine
 // =============================================================
 
-volatile TState buttonState = STATE_RUNNING;
-volatile bool   stateChanged = false;
-
 /*
  * TODO (Activity 1): Implement the E-Stop ISR.
  *
@@ -64,6 +61,35 @@ volatile bool   stateChanged = false;
  * in setup() -- check the ATMega2560 datasheet for the correct
  * registers for your chosen pin.
  */
+
+volatile TState buttonState = STATE_RUNNING;
+volatile bool   stateChanged = false;
+
+#define ESTOP_DDR   DDRE
+#define ESTOP_PORT  PORTE
+#define ESTOP_PINR  PINE
+#define ESTOP_BIT   4       // PE4 = Arduino Mega D2 = INT4
+
+volatile unsigned long lastDebounceTime = 0;
+#define DEBOUNCE_MS 50
+
+ISR(INT4_vect) {
+    unsigned long now = millis();
+
+    if ((now - lastDebounceTime) < DEBOUNCE_MS) return;
+    lastDebounceTime = now;
+
+    uint8_t pinHigh = (ESTOP_PINR & (1 << ESTOP_BIT)) ? 1 : 0;
+
+    if (buttonState == STATE_RUNNING && pinHigh) {
+        buttonState = STATE_STOPPED;
+        stateChanged = true;
+    }
+    else if (buttonState == STATE_STOPPED && !pinHigh) {
+        buttonState = STATE_RUNNING;
+        stateChanged = true;
+    }
+}
 
 
 // =============================================================
@@ -145,18 +171,18 @@ static inline void setColorChannel(uint8_t s2, uint8_t s3) {
 
 static uint32_t measureChannel(uint8_t s2, uint8_t s3) {
     setColorChannel(s2, s3);
-    uint32_t startTime = millis();
-    while(millis() - startTime < 5) {}
+    uint32_t startTime = micros();
+    while((uint32_t)micros() - startTime < 5000UL) {}
 
     uint32_t count = 0;
     uint8_t last = (PINA & (1 << OUT_PIN)) ? 1 : 0;
-    startTime = millis();
-    while(millis() - startTime < 100) {
+    startTime = micros();
+    while(uint32_t)micros() - startTime < 100000UL) {
         uint8_t now = (PINA & (1 << OUT_PIN)) ? 1 : 0;
         if (last == 0 && now == 1) count++;
         last = now;
     }
-    return count * 10;
+    return count * 10UL;
 }
 
 static void readColorChannels(uint32_t *r, uint32_t *g, uint32_t *b) {
@@ -198,9 +224,10 @@ static void handleCommand(const TPacket *cmd) {
         {
             uint32_t r, g, b;
             readColorChannels(&r, &g, &b);
-            TPacket pkt;
+            TPacket pkt; 
+             memset(&pkt, 0, sizeof(pkt));
             pkt.packetType = PACKET_TYPE_RESPONSE;
-            pkt.command = COMMAND_COLOR;
+            pkt.command = RESP_COLOR;
             pkt.params[0] = r;
             pkt.params[1] = g;
             pkt.params[2] = b;
@@ -225,6 +252,14 @@ void setup() {
 #endif
     // TODO (Activity 1): configure the button pin and its external interrupt,
     // then call sei() to enable global interrupts.
+    ESTOP_DDR &= ~(1 << ESTOP_BIT);
+    ESTOP_PORT &= ~(1 << ESTOP_BIT);
+
+    EICRB &= ~(1 << ISC41);
+    EICRB |=  (1 << ISC40);
+
+    EIMSK |= (1 << INT4);
+
     colourSensorInit();
     sei();
 }
