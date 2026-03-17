@@ -296,7 +296,12 @@ def handleLidarCommand():
 
     try:
         scan = performSingleScan(_lidar)
-        plot_single_scan(scan)
+        if scan is None:
+            print("LIDAR scan returned no data.")
+            return
+
+        angles, distances, quality = scan
+        plot_single_scan((angles, distances, quality))
     except Exception as e:
         print(f"LIDAR scan failed: {e}")
 
