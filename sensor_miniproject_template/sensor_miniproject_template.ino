@@ -71,7 +71,7 @@ volatile bool   stateChanged = false;
 #define ESTOP_BIT   4       // PE4 = Arduino Mega D2 = INT4
 
 volatile unsigned long lastDebounceTime = 0;
-#define DEBOUNCE_MS 200
+#define DEBOUNCE_MS 250
 
 ISR(INT4_vect) {
     unsigned long now = millis();
@@ -80,7 +80,7 @@ ISR(INT4_vect) {
     lastDebounceTime = now;
 
     uint8_t pinHigh = (ESTOP_PINR & (1 << ESTOP_BIT)) ? 1 : 0;
-    
+
     if (buttonState == STATE_RUNNING && pinHigh) {
         buttonState = STATE_STOPPED;
         stateChanged = true;
