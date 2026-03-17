@@ -177,7 +177,7 @@ static uint32_t measureChannel(uint8_t s2, uint8_t s3) {
     uint32_t count = 0;
     uint8_t last = (PINA & (1 << OUT_PIN)) ? 1 : 0;
     startTime = micros();
-    while(uint32_t)micros() - startTime < 100000UL) {
+    while((uint32_t)micros() - startTime < 100000UL) {
         uint8_t now = (PINA & (1 << OUT_PIN)) ? 1 : 0;
         if (last == 0 && now == 1) count++;
         last = now;
