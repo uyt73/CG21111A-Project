@@ -17,7 +17,6 @@
  *                    - Application logic: packet helpers, E-Stop state
  *                      machine, color sensor, setup(), and loop().
  */
-
 #include "packets.h"
 #include "serial_driver.h"
 
@@ -191,6 +190,35 @@ static void readColorChannels(uint32_t *r, uint32_t *g, uint32_t *b) {
     *b = measureChannel(0, 1);
 }
 
+int currentSpeed = 150; // Default starting speed
+
+void driveForward() {
+    // TODO: Call your robotlib.ino forward function here
+    forward(currentSpeed);
+}
+void driveBackward() {
+    // TODO: Call your robotlib.ino backward function here
+    backward(currentSpeed);
+}
+void turnLeft() {
+    // TODO: Call your robotlib.ino left function here
+    ccw(currentSpeed);   
+}
+void turnRight() {
+    // TODO: Call your robotlib.ino right function here
+    cw(currentSpeed);
+}
+void speedUp() {
+    currentSpeed += 25;
+    if (currentSpeed > 255) currentSpeed = 255;
+    // TODO: Apply currentSpeed to your motors here
+}
+void speedDown() {
+    currentSpeed -= 25;
+    if (currentSpeed < 0) currentSpeed = 0;
+    // TODO: Apply currentSpeed to your motors here
+}
+
 
 static void handleCommand(const TPacket *cmd) {
     if (cmd->packetType != PACKET_TYPE_COMMAND) return;
@@ -201,6 +229,7 @@ static void handleCommand(const TPacket *cmd) {
             buttonState  = STATE_STOPPED;
             stateChanged = false;
             sei();
+            stop();
             {
                 // The data field of a TPacket can carry a short debug string (up to
                 // 31 characters).  pi_sensor.py prints it automatically for any packet
@@ -234,6 +263,26 @@ static void handleCommand(const TPacket *cmd) {
             sendFrame(&pkt);
             break;
         }
+
+        case COMMAND_FORWARD:
+            driveForward();
+            break;
+        case COMMAND_BACKWARD:
+            driveBackward();
+            break;
+        case COMMAND_TURN_LEFT:
+            turnLeft();
+            break;
+        case COMMAND_TURN_RIGHT:
+            turnRight();
+            break;
+        case COMMAND_SPEED_UP:
+            speedUp();
+            break;
+        case COMMAND_SPEED_DOWN:
+            speedDown();
+            break;
+
     }
 }
 

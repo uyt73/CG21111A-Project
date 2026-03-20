@@ -64,6 +64,12 @@ PACKET_TYPE_MESSAGE  = 2
 
 COMMAND_ESTOP = 0
 COMMAND_COLOR = 1
+COMMAND_FORWARD = 2
+COMMAND_BACKWARD = 3
+COMMAND_LEFT = 4
+COMMAND_RIGHT = 5
+COMMAND_SPEEDUP = 6
+COMMAND_SLOWDOWN = 7
 
 RESP_OK     = 0
 RESP_STATUS = 1
@@ -302,6 +308,20 @@ def handleLidarCommand():
     except Exception as e:
         print(f"LIDAR scan failed: {e}")
 
+# ---------------------------------------------------------------
+# MOVEMENT COMMANDS
+# ---------------------------------------------------------------
+
+def handleMotorCommand(command_type, action_name):
+    if isEstopActive():
+        print(f"Refused: E-Stop is active. Cannot {action_name}.")
+        return
+    
+    print(f"Action: {action_name}")
+    sendCommand(command_type)
+
+
+
 
 # ---------------------------------------------------------------
 # COMMAND-LINE INTERFACE
@@ -320,9 +340,22 @@ def handleUserInput(line):
 
     elif line == 'l':
         handleLidarCommand()
+    
+    elif line == 'w':
+        handleMotorCommand(COMMAND_FORWARD, "Driving Forward")
+    elif line == 's':
+        handleMotorCommand(COMMAND_BACKWARD, "Driving Backward")
+    elif line == 'a':
+        handleMotorCommand(COMMAND_LEFT, "Turning Left")
+    elif line == 'd':
+        handleMotorCommand(COMMAND_RIGHT, "Turning Right")
+    elif line == '+':
+        handleMotorCommand(COMMAND_SPEEDUP, "Increasing Speed")
+    elif line == '-':
+        handleMotorCommand(COMMAND_SLOWDOWN, "Decreasing Speed")
 
     else:
-        print(f"Unknown input: '{line}'. Valid: e, c, p, l")
+        print(f"Unknown input: '{line}'. Valid: e, c, p, l, w, s, a, d, +, -")
 
 
 def runCommandInterface():
