@@ -20,6 +20,7 @@
 #include "packets.h"
 #include "serial_driver.h"
 
+
 // =============================================================
 // Packet helpers (pre-implemented for you)
 // =============================================================
@@ -307,7 +308,7 @@ void setup() {
     EICRB &= ~(1 << ISC41);
     EICRB |=  (1 << ISC40);
 
-    EIMSK |= (1 << INT4);
+    // EIMSK |= (1 << INT4);
 
     colourSensorInit();
     sei();
