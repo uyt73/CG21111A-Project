@@ -270,16 +270,16 @@ static void handleCommand(const TPacket *cmd) {
         case COMMAND_BACKWARD:
             driveBackward();
             break;
-        case COMMAND_TURN_LEFT:
+        case COMMAND_LEFT:
             turnLeft();
             break;
-        case COMMAND_TURN_RIGHT:
+        case COMMAND_RIGHT:
             turnRight();
             break;
-        case COMMAND_SPEED_UP:
+        case COMMAND_SPEEDUP:
             speedUp();
             break;
-        case COMMAND_SPEED_DOWN:
+        case COMMAND_SLOWDOWN:
             speedDown();
             break;
 
