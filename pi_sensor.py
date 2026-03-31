@@ -9,7 +9,7 @@ import serial
 import time
 import sys
 import select
-import packets
+from packets import * 
 from second_terminal import relay
 
 # ---------------------------------------------------------------
