@@ -30,7 +30,7 @@ Student tasks (Activity 3)
 """
 
 from .net_utils import TCPServer, sendTPacketFrame, recvTPacketFrame
-
+import ssl
 
 # ============================================================
 # Configuration
@@ -110,6 +110,16 @@ def start():
         if _st_conn is None:
             print(f"[relay] No second terminal connected within {SECOND_TERM_TIMEOUT}s. Continuing without it.")
 
+    # 1. Create the SSL context
+    context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+
+    # 2. Load your certificate and private key
+    # Make sure the path matches where you generated them in Activity 2!
+    context.load_cert_chain(certfile="certs/server.crt", keyfile="certs/server.key")
+
+    # 3. Pass the context to the TCPServer
+    # (Find where TCPServer is initialized and add the ssl_context argument)
+    server = TCPServer(host='0.0.0.0', port=65432, ssl_context=context)
 
 def shutdown():
     """Close all network connections.
