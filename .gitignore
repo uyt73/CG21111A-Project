@@ -1,0 +1,7 @@
+__pycache__/
+lidar/__pycache__/
+pyrplidar/__pycache__/
+pyrplidar/pyrplidar.egg-info/
+second_terminal/.second_terminal.py.swp
+second_terminal/__pycache__/
+setup_environment.log
