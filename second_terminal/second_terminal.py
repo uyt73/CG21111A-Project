@@ -46,6 +46,7 @@ import struct
 import sys
 import time
 import os
+import ssl
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 parent_dir = os.path.dirname(current_dir)
@@ -233,6 +234,19 @@ def _handleInput(line: str, client: TCPClient):
 # ---------------------------------------------------------------------------
 
 def run():
+    # 1. Create a client TLS context
+    context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+    
+    # 2. Load the public certificate you copied to your laptop
+    # Make sure 'server.crt' is in the same folder, or provide the full path!
+    context.load_verify_locations('server.crt')
+    
+    # 3. Pass the context to the TCPClient
+    # Note: server_hostname MUST match the Common Name or SAN you used (e.g., 'raspberrypi' or the IP)
+    client = TCPClient(host=PI_HOST, port=PI_PORT, ssl_context=context, server_hostname='raspberrypi')
+    
+    print(f"[second_terminal] Connecting to pi_sensor.py at {PI_HOST}:{PI_PORT}...")
+    # ... rest of the function stays exactly the same
     client = TCPClient(host=PI_HOST, port=PI_PORT)
     print(f"[second_terminal] Connecting to pi_sensor.py at {PI_HOST}:{PI_PORT}...")
 
