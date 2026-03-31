@@ -375,12 +375,12 @@ def runCommandInterface():
         rlist, _, _ = select.select([sys.stdin], [], [], 0)
         if rlist:
             line = sys.stdin.readline().strip().lower()
-            relay.checkSecondTerminal(_ser)
             if not line:
                 time.sleep(0.05)
                 continue
             handleUserInput(line)
-
+            
+        relay.checkSecondTerminal(_ser)
         time.sleep(0.05)
 
 

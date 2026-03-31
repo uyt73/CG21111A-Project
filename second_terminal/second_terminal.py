@@ -50,7 +50,7 @@ import os
 current_dir = os.path.dirname(os.path.abspath(__file__))
 parent_dir = os.path.dirname(current_dir)
 sys.path.append(parent_dir)
-import packets
+from packets import *
 
 # net_utils is imported with an absolute import because this script is designed
 # to be run directly (python3 second_terminal/second_terminal.py), which adds
