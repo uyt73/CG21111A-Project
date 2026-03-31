@@ -96,30 +96,23 @@ def checkSecondTerminal(serial_port):
 # ============================================================
 
 def start():
-    """Start the TCP server and wait for second_terminal.py to connect.
-
-    Call this once in pi_sensor.py after openSerial(), before the main loop.
-    """
+    """Start the TCP server and wait for second_terminal.py to connect."""
     global _st_server, _st_conn
 
-    _st_server = TCPServer(port=SECOND_TERM_PORT)
+    # 1. Create the SSL context FIRST
+    context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    context.load_cert_chain(certfile="certs/server.crt", keyfile="certs/server.key")
+
+    # 2. Initialize the global server WITH the context
+    _st_server = TCPServer(port=SECOND_TERM_PORT, ssl_context=context)
+    
+    # 3. THEN start it and wait for the secure connection
     if _st_server.start():
         print("[relay] Waiting for second_terminal.py to connect "
               "(open a new terminal: python3 second_terminal/second_terminal.py)...")
         _st_conn = _st_server.accept(timeout=SECOND_TERM_TIMEOUT)
         if _st_conn is None:
             print(f"[relay] No second terminal connected within {SECOND_TERM_TIMEOUT}s. Continuing without it.")
-
-    # 1. Create the SSL context
-    context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
-
-    # 2. Load your certificate and private key
-    # Make sure the path matches where you generated them in Activity 2!
-    context.load_cert_chain(certfile="certs/server.crt", keyfile="certs/server.key")
-
-    # 3. Pass the context to the TCPServer
-    # (Find where TCPServer is initialized and add the ssl_context argument)
-    server = TCPServer(host='0.0.0.0', port=65432, ssl_context=context)
 
 def shutdown():
     """Close all network connections.
