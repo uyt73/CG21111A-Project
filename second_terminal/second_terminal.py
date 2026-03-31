@@ -271,7 +271,8 @@ def run():
             # Check for keyboard input (non-blocking via select).
             rlist, _, _ = select.select([sys.stdin], [], [], 0)
             if rlist:
-                line = sys.stdin.readline()
+                raw_bytes = os.read(sys.stdin.fileno(), 1024)
+                line = raw_bytes.decode('utf-8', errors='ignore')
                 _handleInput(line, client)
 
             time.sleep(0.02)
