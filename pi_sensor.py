@@ -361,7 +361,7 @@ def handleUserInput(line):
 
 
 def runCommandInterface():
-    print("Sensor interface ready. Type e / c / p / l and press Enter.")
+    print("Sensor interface ready. Type e / c / p / l / w / s / a / d / + / - and press Enter.")
     print("Press Ctrl+C to exit.\n")
 
     while True:
