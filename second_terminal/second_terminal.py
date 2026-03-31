@@ -241,7 +241,7 @@ def run():
     context.load_verify_locations('certs/server.crt')
     
     # 3. Pass the context to the TCPClient
-    client = TCPClient(host=PI_HOST, port=PI_PORT, ssl_context=context, server_hostname='b02g2')
+    client = TCPClient(host=PI_HOST, port=PI_PORT, ssl_context=context, server_hostname='localhost')
     
     print(f"[second_terminal] Connecting to pi_sensor.py at {PI_HOST}:{PI_PORT}...")
 
