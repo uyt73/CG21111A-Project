@@ -239,11 +239,11 @@ def run():
     
     # 2. Load the public certificate you copied to your laptop
     # Make sure 'server.crt' is in the same folder, or provide the full path!
-    context.load_verify_locations('server.crt')
+    context.load_verify_locations('certs/server.crt')
     
     # 3. Pass the context to the TCPClient
     # Note: server_hostname MUST match the Common Name or SAN you used (e.g., 'raspberrypi' or the IP)
-    client = TCPClient(host=PI_HOST, port=PI_PORT, ssl_context=context, server_hostname='raspberrypi')
+    client = TCPClient(host=PI_HOST, port=PI_PORT, ssl_context=context, server_hostname='b02g2')
     
     print(f"[second_terminal] Connecting to pi_sensor.py at {PI_HOST}:{PI_PORT}...")
     # ... rest of the function stays exactly the same
