@@ -9,6 +9,8 @@ import serial
 import time
 import sys
 import select
+import packets
+from second_terminal import relay
 
 # ---------------------------------------------------------------
 # OPTIONAL LIBRARIES
@@ -58,34 +60,34 @@ def closeSerial():
 # TPACKET CONSTANTS
 # ---------------------------------------------------------------
 
-PACKET_TYPE_COMMAND  = 0
-PACKET_TYPE_RESPONSE = 1
-PACKET_TYPE_MESSAGE  = 2
+# PACKET_TYPE_COMMAND  = 0
+# PACKET_TYPE_RESPONSE = 1
+# PACKET_TYPE_MESSAGE  = 2
 
-COMMAND_ESTOP = 0
-COMMAND_COLOR = 1
-COMMAND_FORWARD = 2
-COMMAND_BACKWARD = 3
-COMMAND_LEFT = 4
-COMMAND_RIGHT = 5
-COMMAND_SPEEDUP = 6
-COMMAND_SLOWDOWN = 7
+# COMMAND_ESTOP = 0
+# COMMAND_COLOR = 1
+# COMMAND_FORWARD = 2
+# COMMAND_BACKWARD = 3
+# COMMAND_LEFT = 4
+# COMMAND_RIGHT = 5
+# COMMAND_SPEEDUP = 6
+# COMMAND_SLOWDOWN = 7
 
-RESP_OK     = 0
-RESP_STATUS = 1
-RESP_COLOR  = 2
+# RESP_OK     = 0
+# RESP_STATUS = 1
+# RESP_COLOR  = 2
 
-STATE_RUNNING = 0
-STATE_STOPPED = 1
+# STATE_RUNNING = 0
+# STATE_STOPPED = 1
 
-MAX_STR_LEN  = 32
-PARAMS_COUNT = 16
+# MAX_STR_LEN  = 32
+# PARAMS_COUNT = 16
 
-TPACKET_SIZE = 1 + 1 + 2 + MAX_STR_LEN + (PARAMS_COUNT * 4)
-TPACKET_FMT  = f'<BB2x{MAX_STR_LEN}s{PARAMS_COUNT}I'
+# TPACKET_SIZE = 1 + 1 + 2 + MAX_STR_LEN + (PARAMS_COUNT * 4)
+# TPACKET_FMT  = f'<BB2x{MAX_STR_LEN}s{PARAMS_COUNT}I'
 
-MAGIC = b'\xDE\xAD'
-FRAME_SIZE = len(MAGIC) + TPACKET_SIZE + 1
+# MAGIC = b'\xDE\xAD'
+# FRAME_SIZE = len(MAGIC) + TPACKET_SIZE + 1
 
 
 # ---------------------------------------------------------------
@@ -367,10 +369,13 @@ def runCommandInterface():
             pkt = receiveFrame()
             if pkt:
                 printPacket(pkt)
+                relay.onPacketReceived(packFrame(pkt['packetType'], pkt['command'],
+                pkt['data'], pkt['params']))
 
         rlist, _, _ = select.select([sys.stdin], [], [], 0)
         if rlist:
             line = sys.stdin.readline().strip().lower()
+            relay.checkSecondTerminal(_ser)
             if not line:
                 time.sleep(0.05)
                 continue
@@ -385,6 +390,7 @@ def runCommandInterface():
 
 if __name__ == '__main__':
     openSerial()
+    relay.start()
 
     if cameraOpen is not None:
         try:
@@ -409,5 +415,6 @@ if __name__ == '__main__':
                 lidarDisconnect(_lidar)
         except Exception:
             pass
+        relay.shutdown()
 
         closeSerial()

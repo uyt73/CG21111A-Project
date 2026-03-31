@@ -64,15 +64,20 @@ static void sendStatus(TState state) {
 volatile TState buttonState = STATE_RUNNING;
 volatile bool   stateChanged = false;
 
-#define ESTOP_DDR   DDRE
-#define ESTOP_PORT  PORTE
-#define ESTOP_PINR  PINE
-#define ESTOP_BIT   4       // PE4 = Arduino Mega D2 = INT4
+// #define ESTOP_DDR   DDRE
+// #define ESTOP_PORT  PORTE
+// #define ESTOP_PINR  PINE
+// #define ESTOP_BIT   4       // PE4 = Arduino Mega D2 = INT4
+
+#define ESTOP_DDR   DDRK
+#define ESTOP_PORT  PORTK
+#define ESTOP_PINR  PINK
+#define ESTOP_BIT PCINT23 // A15 Arduino Mega
 
 volatile unsigned long lastDebounceTime = 0;
 #define DEBOUNCE_MS 250
 
-ISR(INT4_vect) {
+ISR(PCINT2_vect) {
     unsigned long now = millis();
 
     if ((now - lastDebounceTime) < DEBOUNCE_MS) return;
@@ -304,10 +309,13 @@ void setup() {
     ESTOP_DDR &= ~(1 << ESTOP_BIT);
     ESTOP_PORT &= ~(1 << ESTOP_BIT);
 
-    EICRB &= ~(1 << ISC41);
-    EICRB |=  (1 << ISC40);
+    PCICR |= (1 << PCIE1);
+    PCMSK |= (1 << ESTOP_BIT);
 
-    EIMSK |= (1 << INT4);
+    // EICRB &= ~(1 << ISC41);
+    // EICRB |=  (1 << ISC40);
+
+    // EIMSK |= (1 << INT4);
 
     colourSensorInit();
     sei();
