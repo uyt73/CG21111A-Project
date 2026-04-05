@@ -31,9 +31,6 @@ void clearEstop() {
     
     // Send the "Coast is Clear" signal back to the Pi
     sendFrame(&pkt);
-    
-    // Optional: Log to Serial for local debugging
-    Serial.println("System: E-Stop cleared.");
 }
 
 void changeSpeed(int delta) {
