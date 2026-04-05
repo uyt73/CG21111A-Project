@@ -300,8 +300,8 @@ def handleCameraCommand():
 # ACTIVITY 4: LIDAR
 # ----------------------------------------------------------------
 
-# TODO (Activity 4): import from lidar.alex_lidar and lidar_example_cli_plot
-#   (lidar_example_cli_plot.py is in the same folder; alex_lidar.py is in lidar/).
+from lidar import alex_lidar
+import lidar_example_cli_plot
 
 
 def handleLidarCommand():
@@ -317,8 +317,9 @@ def handleLidarCommand():
         
     print("Starting LIDAR scan...")
 
-    # TODO
-    pass
+    scan = alex_lidar.get_single_scan()  
+    
+    lidar_example_cli_plot.plot_single_scan(scan)
 
 
 # ----------------------------------------------------------------
@@ -346,6 +347,8 @@ def handleUserInput(line):
         handleColorCommand()
     elif line == 'p':
         handleCameraCommand()
+    elif line == 'l':
+        handleLidarCommand()
     else:
         print(f"Unknown input: '{line}'. Valid: e, c, p, l")
 
@@ -390,4 +393,7 @@ if __name__ == '__main__':
     finally:
         if _camera is not None:
             alex_camera.cameraClose(_camera)
+            
+        alex_lidar.stop()
+
         closeSerial()
