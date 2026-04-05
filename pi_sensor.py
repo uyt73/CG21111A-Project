@@ -317,9 +317,7 @@ def handleLidarCommand():
         
     print("Starting LIDAR scan...")
 
-    scan = alex_lidar.get_single_scan()  
-    
-    lidar_example_cli_plot.plot_single_scan(scan)
+    lidar_example_cli_plot.plot_single_scan()
 
 
 # ----------------------------------------------------------------
@@ -393,7 +391,5 @@ if __name__ == '__main__':
     finally:
         if _camera is not None:
             alex_camera.cameraClose(_camera)
-            
-        alex_lidar.stop()
 
         closeSerial()
