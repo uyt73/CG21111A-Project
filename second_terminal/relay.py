@@ -123,5 +123,3 @@ def shutdown():
         _st_server = None
 
     print("[relay] Shutdown complete.")
-
-relay = Relay()
