@@ -58,13 +58,11 @@ PACKET_TYPE_RESPONSE = 1
 PACKET_TYPE_MESSAGE  = 2
 
 COMMAND_ESTOP  = 0
-# TODO (Activity 2): define your own command type for the color sensor here.
-# It must match the value you add to TCommandType in packets.h.
+COMMAND_COLOR = 1
 
 RESP_OK     = 0
 RESP_STATUS = 1
-# TODO (Activity 2): define your own response type for the color sensor here.
-# It must match the value you add to TResponseType in packets.h.
+RESP_COLOR  = 2
 
 STATE_RUNNING = 0
 STATE_STOPPED = 1
@@ -219,10 +217,12 @@ def printPacket(pkt):
                 print("Status: RUNNING")
             else:
                 print("Status: STOPPED")
+        elif cmd == RESP_COLOR:
+                r = pkt['params'][0]
+                g = pkt['params'][1]
+                b = pkt['params'][2]
+                print(f"Color: R={r} Hz, G={g} Hz, B={b} Hz")
         else:
-            # TODO (Activity 2): add an elif branch here to handle your color
-            # response.  Display the three channel frequencies in Hz, e.g.:
-            #   R: <params[0]> Hz, G: <params[1]> Hz, B: <params[2]> Hz
             print(f"Response: unknown command {cmd}")
         # Print the optional debug string from the data field.
         # On the Arduino side, fill pkt.data before calling sendFrame() to
@@ -249,8 +249,12 @@ def handleColorCommand():
     Check the E-Stop state first; if stopped, refuse with a clear message.
     Otherwise, send your color command to the Arduino.
     """
-    # TODO
-    pass
+    if isEstopActive():
+        print("Refused: E-Stop is active.")
+        return
+        
+    print("Sending color command...")
+    sendCommand(COMMAND_COLOR)
 
 
 # ----------------------------------------------------------------
@@ -271,6 +275,16 @@ def handleCameraCommand():
     Use captureGreyscaleFrame() and renderGreyscaleFrame() from alex_camera.
     """
     global _frames_remaining
+
+    # if isEstopActive():
+    #     print("Refused: E-Stop is active.")
+    #     return
+        
+    # if _frames_remaining <= 0:
+    #     print("Refused: No camera frames remaining.")
+    #     return
+    # _frames_remaining -= 1
+    # print(f"Frames remaining: {_frames_remaining}")
     # TODO
     pass
 
@@ -290,6 +304,12 @@ def handleLidarCommand():
     Gate on E-Stop state, then use the LIDAR library to capture one scan
     and the CLI plot helpers to display it.
     """
+    if isEstopActive():
+        print("Refused: E-Stop is active.")
+        return
+        
+    print("Starting LIDAR scan...")
+
     # TODO
     pass
 
@@ -315,7 +335,8 @@ def handleUserInput(line):
     if line == 'e':
         print("Sending E-Stop command...")
         sendCommand(COMMAND_ESTOP, data=b'This is a debug message')
-    # TODO (Activity 2): add an elif branch for 'c' (color sensor) that calls handleColorCommand().
+    elif line == 'c':
+        handleColorCommand()
     # TODO (Activities 3 & 4): add elif branches for 'p' (camera) and 'l' (LIDAR).
     else:
         print(f"Unknown input: '{line}'. Valid: e, c, p, l")

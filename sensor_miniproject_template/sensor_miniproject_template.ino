@@ -92,38 +92,54 @@ ISR(INT0_vect) {
 // Color sensor (TCS3200)
 // =============================================================
 
-/*
- * TODO (Activity 2): Implement the color sensor.
- *
- * Wire the TCS3200 to the Arduino Mega and configure the output pins
- * (S0, S1, S2, S3) and the frequency output pin.
- *
- * Use 20% output frequency scaling (S0=HIGH, S1=LOW).  This is the
- * required standardised setting; it gives a convenient measurement range and
- * ensures all implementations report the same physical quantity.
- *
- * Use a timer to count rising edges on the sensor output over a fixed
- * window (e.g. 100 ms) for each color channel (red, green, blue).
- * Convert the edge count to hertz before sending:
- *   frequency_Hz = edge_count / measurement_window_s
- * For a 100 ms window: frequency_Hz = edge_count * 10.
- *
- * Implement a function that measures all three channels and stores the
- * frequency in Hz in three variables.
- *
- * Define your own command and response types in packets.h (and matching
- * constants in pi_sensor.py), then handle the command in handleCommand()
- * and send back the channel frequencies (in Hz) in a response packet.
- *
- * Example skeleton:
- *
- *   static void readColorChannels(uint32_t *r, uint32_t *g, uint32_t *b) {
- *       // Set S2/S3 for each channel, measure edge count, multiply by 10
- *       *r = measureChannel(0, 0) * 10;  // red,   in Hz
- *       *g = measureChannel(1, 1) * 10;  // green, in Hz
- *       *b = measureChannel(0, 1) * 10;  // blue,  in Hz
- *   }
- */
+#define OUT_PIN 2
+#define S0 3
+#define S1 4
+#define S2 5
+#define S3 6
+
+static void colourSensorInit() {
+    // Configure S pins as OUTPUT and OUT_PIN as INPUT
+    DDRA |= (1 << S0) | (1 << S1) | (1 << S2) | (1 << S3);
+    DDRA &= ~(1 << OUT_PIN);
+    
+    // Set to 20% frequency scaling [cite: 589]
+    PORTA |= (1 << S0);
+    PORTA &= ~(1 << S1);
+}
+
+static inline void setColorChannel(uint8_t s2, uint8_t s3) {
+    if (s2) PORTA |= (1 << S2);
+    else    PORTA &= ~(1 << S2);
+    
+    if (s3) PORTA |= (1 << S3);
+    else    PORTA &= ~(1 << S3);
+}
+
+static uint32_t measureChannel(uint8_t s2, uint8_t s3) {
+    setColorChannel(s2, s3);
+    uint32_t startTime = micros();
+    // Allow sensor to settle after changing filters
+    while((uint32_t)micros() - startTime < 5000UL) {} 
+
+    uint32_t count = 0;
+    uint8_t last = (PINA & (1 << OUT_PIN)) ? 1 : 0;
+    startTime = micros();
+    
+    // Count rising edges over a 100ms window [cite: 615]
+    while((uint32_t)micros() - startTime < 100000UL) {
+        uint8_t now = (PINA & (1 << OUT_PIN)) ? 1 : 0;
+        if (last == 0 && now == 1) count++;
+        last = now;
+    }
+    return count * 10UL; // Convert to Hz [cite: 615]
+}
+
+static void readColorChannels(uint32_t *r, uint32_t *g, uint32_t *b) {
+    *r = measureChannel(0, 0); // Red
+    *g = measureChannel(1, 1); // Green
+    *b = measureChannel(0, 1); // Blue
+}
 
 
 // =============================================================
@@ -164,10 +180,22 @@ static void handleCommand(const TPacket *cmd) {
             }
             sendStatus(STATE_STOPPED);
             break;
-
-        // TODO (Activity 2): add COMMAND_COLOR case here.
-        //   Call your color-reading function (which returns Hz), then send a
-        //   response packet with the three channel frequencies in Hz.
+        case COMMAND_COLOR:
+        {
+            uint32_t r, g, b;
+            readColorChannels(&r, &g, &b);
+            
+            TPacket pkt;
+            memset(&pkt, 0, sizeof(pkt));
+            pkt.packetType = PACKET_TYPE_RESPONSE;
+            pkt.command    = RESP_COLOR;
+            pkt.params[0]  = r;
+            pkt.params[1]  = g;
+            pkt.params[2]  = b;
+            
+            sendFrame(&pkt);
+            break;
+        }
     }
 }
 
@@ -189,6 +217,8 @@ void setup() {
     EICRA |= (1 << ISC00);
     EICRA &= ~(1 << ISC01);
     EIMSK |= (1 << INT0);
+
+    colourSensorInit();
 
     sei();
 }
