@@ -22,7 +22,13 @@ typedef enum {
 
 typedef enum {
     COMMAND_ESTOP = 0,
-    COMMAND_COLOR = 1
+    COMMAND_COLOR = 1,
+    COMMAND_FORWARD = 2,
+    COMMAND_BACKWARD = 3,
+    COMMAND_TURN_LEFT = 4,
+    COMMAND_TURN_RIGHT = 5,
+    COMMAND_SPEED_UP = 6,
+    COMMAND_SPEED_DOWN = 7
 } TCommandType;
 
 typedef enum {

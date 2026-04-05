@@ -1,23 +1,49 @@
-void setup() {
-  // put your setup code here, to run once:
+#include "packets.h"
+#include "serial_driver.h"
 
+int currentSpeed = 150; // Variable to store speed [cite: 221]
+
+void setup() {
+  // Serial setup from Studio 13 
+#if USE_BAREMETAL_SERIAL
+  usartInit(103); 
+#else
+  Serial.begin(9600);
+#endif
+
+  sei(); 
+}
+
+// Wrapper functions to call robotlib.ino [cite: 215, 15]
+void driveForward()  { forward(currentSpeed); }
+void driveBackward() { backward(currentSpeed); }
+void turnLeft()      { ccw(currentSpeed); }
+void turnRight()     { cw(currentSpeed); }
+
+void changeSpeed(int delta) {
+  currentSpeed += delta;
+  if (currentSpeed > 255) currentSpeed = 255;
+  if (currentSpeed < 0) currentSpeed = 0;
+}
+
+void handleCommand(const TPacket *cmd) {
+  if (cmd->packetType != PACKET_TYPE_COMMAND) return;
+
+  switch (cmd->command) {
+    case COMMAND_FORWARD:    driveForward();  break;
+    case COMMAND_BACKWARD:   driveBackward(); break;
+    case COMMAND_TURN_LEFT:  turnLeft();      break;
+    case COMMAND_TURN_RIGHT: turnRight();     break;
+    case COMMAND_SPEED_UP:   changeSpeed(25); break;
+    case COMMAND_SPEED_DOWN: changeSpeed(-25);break;
+    case COMMAND_ESTOP:      stop();          break;
+  }
 }
 
 void loop() {
-  // put your main code here, to run repeatedly:
-
-  forward(200); // takes values from 0 to 255
-  delay(2000);
-
-  ccw(200); // takes values from 0 to 255
-  delay(2000);
-
-  backward(200); // takes values from 0 to 255
-  delay(2000);
-
-  cw(200); // takes values from 0 to 255
-  delay(2000);
-
-  stop();
-  delay(4000);
+  TPacket incoming;
+  // Instead of hardcoded delays, we check for new serial packets 
+  if (receiveFrame(&incoming)) {
+    handleCommand(&incoming);
+  }
 }

@@ -57,8 +57,14 @@ PACKET_TYPE_COMMAND  = 0
 PACKET_TYPE_RESPONSE = 1
 PACKET_TYPE_MESSAGE  = 2
 
-COMMAND_ESTOP  = 0
-COMMAND_COLOR = 1
+COMMAND_ESTOP      = 0
+COMMAND_COLOR      = 1
+COMMAND_FORWARD    = 2
+COMMAND_BACKWARD   = 3
+COMMAND_TURN_LEFT  = 4
+COMMAND_TURN_RIGHT = 5
+COMMAND_SPEED_UP   = 6
+COMMAND_SPEED_DOWN = 7
 
 RESP_OK     = 0
 RESP_STATUS = 1
@@ -347,8 +353,20 @@ def handleUserInput(line):
         handleCameraCommand()
     elif line == 'l':
         handleLidarCommand()
+    elif line == 'w':
+        sendCommand(COMMAND_FORWARD)
+    elif line == 's':
+        sendCommand(COMMAND_BACKWARD)
+    elif line == 'a':
+        sendCommand(COMMAND_TURN_LEFT)
+    elif line == 'd':
+        sendCommand(COMMAND_TURN_RIGHT)
+    elif line == '+':
+        sendCommand(COMMAND_SPEED_UP)
+    elif line == '-':
+        sendCommand(COMMAND_SPEED_DOWN)
     else:
-        print(f"Unknown input: '{line}'. Valid: e, c, p, l")
+        print(f"Unknown input: '{line}'. Valid: e, c, p, l, w, a, s, d, +, -")
 
 
 def runCommandInterface():
