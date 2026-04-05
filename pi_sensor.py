@@ -218,10 +218,10 @@ def printPacket(pkt):
             else:
                 print("Status: STOPPED")
         elif cmd == RESP_COLOR:
-                r = pkt['params'][0]
-                g = pkt['params'][1]
-                b = pkt['params'][2]
-                print(f"Color: R={r} Hz, G={g} Hz, B={b} Hz")
+            r = pkt['params'][0]
+            g = pkt['params'][1]
+            b = pkt['params'][2]
+            print(f"Color: R={r} Hz, G={g} Hz, B={b} Hz")
         else:
             print(f"Response: unknown command {cmd}")
         # Print the optional debug string from the data field.
@@ -261,32 +261,39 @@ def handleColorCommand():
 # ACTIVITY 3: CAMERA
 # ----------------------------------------------------------------
 
-# TODO (Activity 3): import the camera library provided (alex_camera.py).
+import alex_camera
 
-_camera = None          # TODO (Activity 3): open the camera (cameraOpen()) before first use.
-_frames_remaining = 5   # frames remaining before further captures are refused
+# Open the camera and store the reference
+print("Initializing camera...")
+_camera = alex_camera.cameraOpen() 
+_frames_remaining = 5
 
 
 def handleCameraCommand():
     """
     TODO (Activity 3): capture and display a greyscale frame.
-
     Gate on E-Stop state and the remaining frame count.
-    Use captureGreyscaleFrame() and renderGreyscaleFrame() from alex_camera.
     """
     global _frames_remaining
 
-    # if isEstopActive():
-    #     print("Refused: E-Stop is active.")
-    #     return
+    # 1. Enforce the E-Stop gate
+    if isEstopActive():
+        print("Refused: E-Stop is active.")
+        return
         
-    # if _frames_remaining <= 0:
-    #     print("Refused: No camera frames remaining.")
-    #     return
-    # _frames_remaining -= 1
-    # print(f"Frames remaining: {_frames_remaining}")
-    # TODO
-    pass
+    # 2. Enforce the frame limit (max 5 pictures)
+    if _frames_remaining <= 0:
+        print("Refused: No camera frames remaining.")
+        return
+    
+    # 3. Capture and display the photo
+    print("Capturing image...")
+    frame = alex_camera.captureGreyscaleFrame(_camera)
+    alex_camera.renderGreyscaleFrame(frame)
+
+    # 4. Decrease the counter and print
+    _frames_remaining -= 1
+    print(f"Frames remaining: {_frames_remaining}")
 
 
 # ----------------------------------------------------------------
@@ -337,7 +344,8 @@ def handleUserInput(line):
         sendCommand(COMMAND_ESTOP, data=b'This is a debug message')
     elif line == 'c':
         handleColorCommand()
-    # TODO (Activities 3 & 4): add elif branches for 'p' (camera) and 'l' (LIDAR).
+    elif line == 'p':
+        handleCameraCommand()
     else:
         print(f"Unknown input: '{line}'. Valid: e, c, p, l")
 
@@ -380,5 +388,6 @@ if __name__ == '__main__':
     except KeyboardInterrupt:
         print("\nExiting.")
     finally:
-        # TODO (Activities 3 & 4): close the camera and disconnect the LIDAR here if you opened them.
+        if _camera is not None:
+            alex_camera.cameraClose(_camera)
         closeSerial()
