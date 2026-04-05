@@ -52,6 +52,9 @@ static void sendStatus(TState state) {
 volatile TState buttonState = STATE_RUNNING;
 volatile bool   stateChanged = false;
 
+volatile unsigned long lastDebounceTime = 0;
+const unsigned long DEBOUNCE_DELAY = 50;
+
 /*
  * TODO (Activity 1): Implement the E-Stop ISR.
  *
@@ -64,6 +67,25 @@ volatile bool   stateChanged = false;
  * in setup() -- check the ATMega2560 datasheet for the correct
  * registers for your chosen pin.
  */
+ISR(INT0_vect) {
+    unsigned long currentMillis = millis();
+    
+    if (currentMillis - lastDebounceTime > DEBOUNCE_DELAY) {
+        // Read the bare-metal state of Pin 21 (PD0)
+        bool isHigh = (PIND & (1 << PD0)); 
+        
+        if (buttonState == STATE_RUNNING && isHigh) {
+            buttonState = STATE_STOPPED;
+            stateChanged = true;
+        } 
+        else if (buttonState == STATE_STOPPED && !isHigh) {
+            buttonState = STATE_RUNNING;
+            stateChanged = true;
+        }
+        
+        lastDebounceTime = currentMillis;
+    }
+}
 
 
 // =============================================================
@@ -163,7 +185,11 @@ void setup() {
     Serial.begin(9600);
 #endif
     // TODO (Activity 1): configure the button pin and its external interrupt,
-    // then call sei() to enable global interrupts.
+    DDRD &= ~(1 << PD0);
+    EICRA |= (1 << ISC00);
+    EICRA &= ~(1 << ISC01);
+    EIMSK |= (1 << INT0);
+
     sei();
 }
 

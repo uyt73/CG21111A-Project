@@ -28,7 +28,7 @@
 // TODO (Activity 1, step 2): change this to 1 once txEnqueue(),
 // rxDequeue(), and both ISRs are implemented and working.
 // =============================================================
-#define USE_BAREMETAL_SERIAL 0
+#define USE_BAREMETAL_SERIAL 1
 
 // =============================================================
 // Circular TX / RX buffers (used when USE_BAREMETAL_SERIAL == 1)
@@ -75,14 +75,35 @@ void usartInit(uint16_t ubrr) {
  * interrupt (UDRIE0) and return true.  Must NOT block.
  */
 bool txEnqueue(const uint8_t *data, uint8_t len) {
-    // TODO
-    return false;
+    // Check if there is enough free space in the buffer
+    uint8_t free_space = (tx_tail - tx_head - 1) & TX_BUFFER_MASK;
+    if (len > free_space) return false;
+
+    // Copy the bytes into the buffer
+    for (uint8_t i = 0; i < len; i++) {
+        tx_buf[tx_head] = data[i];
+        tx_head = (tx_head + 1) & TX_BUFFER_MASK;
+    }
+    
+    // Turn on the UDRE interrupt to tell the hardware to start sending
+    UCSR0B |= (1 << UDRIE0); 
+    return true;
 }
 
 // TODO (Activity 1): Implement the TX Data Register Empty ISR.
 // Vector: USART0_UDRE_vect
 // Drain one byte from tx_buf into UDR0; when the buffer is empty,
 // clear the UDRIE0 bit to stop the ISR from firing.
+ISR(USART0_UDRE_vect) {
+    // 1. If the buffer is empty, turn off the interrupt so it stops firing
+    if (tx_head == tx_tail) {
+        UCSR0B &= ~(1 << UDRIE0);
+    } else {
+        // 2. Otherwise, load the next byte into UDR0 (the hardware send register)
+        UDR0 = tx_buf[tx_tail];
+        tx_tail = (tx_tail + 1) & TX_BUFFER_MASK;
+    }
+}
 
 /*
  * TODO (Activity 1): Implement rxDequeue().
@@ -92,8 +113,16 @@ bool txEnqueue(const uint8_t *data, uint8_t len) {
  * anything and return false.  Must NOT block.
  */
 bool rxDequeue(uint8_t *data, uint8_t len) {
-    // TODO
-    return false;
+    // Check how many bytes are currently waiting in the buffer
+    uint8_t available = (rx_head - rx_tail) & RX_BUFFER_MASK;
+    if (available < len) return false;
+
+    // Copy the bytes out of the buffer and into your program's array
+    for (uint8_t i = 0; i < len; i++) {
+        data[i] = rx_buf[rx_tail];
+        rx_tail = (rx_tail + 1) & RX_BUFFER_MASK;
+    }
+    return true;
 }
 
 #endif
@@ -102,6 +131,19 @@ bool rxDequeue(uint8_t *data, uint8_t len) {
 // Vector: USART0_RX_vect
 // Read UDR0 immediately.  If the buffer is not full, store the byte
 // and advance the write index; otherwise discard it.
+ISR(USART0_RX_vect) {
+    // 1. MUST read UDR0 immediately to clear the hardware interrupt flag
+    uint8_t incoming_byte = UDR0; 
+    
+    // 2. Calculate where the next head position will be
+    uint8_t next_head = (rx_head + 1) & RX_BUFFER_MASK;
+    
+    // 3. If the buffer isn't full, save the byte. If it is full, drop it.
+    if (next_head != rx_tail) {
+        rx_buf[rx_head] = incoming_byte;
+        rx_head = next_head;
+    }
+}
 
 // =============================================================
 // Framing: magic number + XOR checksum (pre-implemented)
