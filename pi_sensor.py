@@ -220,6 +220,11 @@ def printPacket(pkt):
             print("Response: OK")
         elif cmd == RESP_STATUS:
             state = pkt['params'][0]
+
+            if _estop_state == STATE_STOPPED and state == STATE_RUNNING:
+                timestamp = time.strftime('%H:%M:%S')
+                print(f"\n[{timestamp}] LOG: E-Stop Cleared. Robot movement is now ENABLED.")
+
             _estop_state = state
             if state == STATE_RUNNING:
                 print("Status: RUNNING")
@@ -350,7 +355,7 @@ def handleUserInput(line):
         print("Clearing E-Stop state...")
         sendCommand(COMMAND_CLEAR_ESTOP)
         return
-        
+
     if line == 'e':
         print("Sending E-Stop command...")
         sendCommand(COMMAND_ESTOP, data=b'This is a debug message')
