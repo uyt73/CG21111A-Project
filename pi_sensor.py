@@ -21,9 +21,10 @@ import serial
 import time
 import sys
 import select
-import os
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+# import os
+# sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from second_terminal.relay import relay
+relay = Relay()
 
 
 # ----------------------------------------------------------------
