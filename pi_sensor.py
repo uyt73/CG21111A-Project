@@ -21,7 +21,7 @@ import serial
 import time
 import sys
 import select
-from second_terminal.second_terminal import relay
+from second_terminal.relay import relay
 
 
 # ----------------------------------------------------------------
