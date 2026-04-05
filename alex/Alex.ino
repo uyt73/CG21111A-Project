@@ -20,6 +20,22 @@ void driveBackward() { backward(currentSpeed); }
 void turnLeft()      { ccw(currentSpeed); }
 void turnRight()     { cw(currentSpeed); }
 
+void clearEstop() {
+    // Prepare the response packet for the Pi
+    TPacket pkt;
+    memset(&pkt, 0, sizeof(pkt));
+    
+    pkt.packetType = PACKET_TYPE_RESPONSE;
+    pkt.command    = RESP_STATUS;
+    pkt.params[0]  = STATE_RUNNING; 
+    
+    // Send the "Coast is Clear" signal back to the Pi
+    sendFrame(&pkt);
+    
+    // Optional: Log to Serial for local debugging
+    Serial.println("System: E-Stop cleared.");
+}
+
 void changeSpeed(int delta) {
   currentSpeed += delta;
   if (currentSpeed > 255) currentSpeed = 255;
@@ -30,14 +46,15 @@ void handleCommand(const TPacket *cmd) {
   if (cmd->packetType != PACKET_TYPE_COMMAND) return;
 
   switch (cmd->command) {
-    case COMMAND_FORWARD:    driveForward();  break;
-    case COMMAND_BACKWARD:   driveBackward(); break;
-    case COMMAND_TURN_LEFT:  turnLeft();      break;
-    case COMMAND_TURN_RIGHT: turnRight();     break;
-    case COMMAND_SPEED_UP:   changeSpeed(25); break;
-    case COMMAND_SPEED_DOWN: changeSpeed(-25);break;
-    case COMMAND_ESTOP:      stop();          break;
-    case COMMAND_STOP:       stop();          break;
+    case COMMAND_FORWARD:     driveForward();  break;
+    case COMMAND_BACKWARD:    driveBackward(); break;
+    case COMMAND_TURN_LEFT:   turnLeft();      break;
+    case COMMAND_TURN_RIGHT:  turnRight();     break;
+    case COMMAND_SPEED_UP:    changeSpeed(25); break;
+    case COMMAND_SPEED_DOWN:  changeSpeed(-25);break;
+    case COMMAND_ESTOP:       stop();          break;
+    case COMMAND_STOP:        stop();          break;
+    case COMMAND_CLEAR_ESTOP: clearEstop();    break;
   }
 }
 

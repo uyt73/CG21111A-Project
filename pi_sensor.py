@@ -66,6 +66,7 @@ COMMAND_TURN_RIGHT = 5
 COMMAND_SPEED_UP   = 6
 COMMAND_SPEED_DOWN = 7
 COMMAND_STOP = 8
+COMMAND_CLEAR_ESTOP = 9
 
 RESP_OK     = 0
 RESP_STATUS = 1
@@ -345,6 +346,11 @@ def handleUserInput(line):
     The 'e' case is pre-wired to send a software E-Stop command.
     TODO (Activities 2, 3 & 4): add 'c' (color), 'p' (camera) and 'l' (LIDAR).
     """
+    if line == 'r':
+        print("Clearing E-Stop state...")
+        sendCommand(COMMAND_CLEAR_ESTOP)
+        return
+        
     if line == 'e':
         print("Sending E-Stop command...")
         sendCommand(COMMAND_ESTOP, data=b'This is a debug message')
