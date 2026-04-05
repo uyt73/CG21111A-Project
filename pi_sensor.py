@@ -376,7 +376,7 @@ def runCommandInterface():
     Uses select.select() to simultaneously receive packets from the Arduino
     and read typed user input from stdin without either blocking the other.
     """
-    print("Sensor interface ready. Type e / c / p / l and press Enter.")
+    print("Sensor interface ready. Type e / c / p / l / w / a / s / d / + / - and press Enter.")
     print("Press Ctrl+C to exit.\n")
 
     while True:
