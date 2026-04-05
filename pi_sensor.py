@@ -65,6 +65,7 @@ COMMAND_TURN_LEFT  = 4
 COMMAND_TURN_RIGHT = 5
 COMMAND_SPEED_UP   = 6
 COMMAND_SPEED_DOWN = 7
+COMMAND_STOP = 8
 
 RESP_OK     = 0
 RESP_STATUS = 1
@@ -365,6 +366,9 @@ def handleUserInput(line):
         sendCommand(COMMAND_SPEED_UP)
     elif line == '-':
         sendCommand(COMMAND_SPEED_DOWN)
+    elif line == 'h':
+        print("Stopping Robot")
+        sendCommand(COMMAND_STOP)
     else:
         print(f"Unknown input: '{line}'. Valid: e, c, p, l, w, a, s, d, +, -")
 

@@ -28,7 +28,8 @@ typedef enum {
     COMMAND_TURN_LEFT = 4,
     COMMAND_TURN_RIGHT = 5,
     COMMAND_SPEED_UP = 6,
-    COMMAND_SPEED_DOWN = 7
+    COMMAND_SPEED_DOWN = 7,
+    COMMAND_STOP = 8
 } TCommandType;
 
 typedef enum {

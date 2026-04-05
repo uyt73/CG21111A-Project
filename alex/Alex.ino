@@ -37,6 +37,7 @@ void handleCommand(const TPacket *cmd) {
     case COMMAND_SPEED_UP:   changeSpeed(25); break;
     case COMMAND_SPEED_DOWN: changeSpeed(-25);break;
     case COMMAND_ESTOP:      stop();          break;
+    case COMMAND_STOP:       stop();          break;
   }
 }
 
