@@ -21,6 +21,8 @@ import serial
 import time
 import sys
 import select
+from second_terminal.second_terminal import relay
+
 
 # ----------------------------------------------------------------
 # SERIAL PORT SETUP
@@ -53,33 +55,7 @@ def closeSerial():
 # (must match sensor_miniproject_template.ino)
 # ----------------------------------------------------------------
 
-PACKET_TYPE_COMMAND  = 0
-PACKET_TYPE_RESPONSE = 1
-PACKET_TYPE_MESSAGE  = 2
-
-COMMAND_ESTOP      = 0
-COMMAND_COLOR      = 1
-COMMAND_FORWARD    = 2
-COMMAND_BACKWARD   = 3
-COMMAND_TURN_LEFT  = 4
-COMMAND_TURN_RIGHT = 5
-COMMAND_SPEED_UP   = 6
-COMMAND_SPEED_DOWN = 7
-COMMAND_STOP = 8
-COMMAND_CLEAR_ESTOP = 9
-
-RESP_OK     = 0
-RESP_STATUS = 1
-RESP_COLOR  = 2
-
-STATE_RUNNING = 0
-STATE_STOPPED = 1
-
-MAX_STR_LEN  = 32
-PARAMS_COUNT = 16
-
-TPACKET_SIZE = 1 + 1 + 2 + MAX_STR_LEN + (PARAMS_COUNT * 4)  # = 100
-TPACKET_FMT  = f'<BB2x{MAX_STR_LEN}s{PARAMS_COUNT}I'
+from packets import *
 
 # ----------------------------------------------------------------
 # RELIABLE FRAMING: magic number + XOR checksum
@@ -399,7 +375,7 @@ def runCommandInterface():
             pkt = receiveFrame()
             if pkt:
                 printPacket(pkt)
-
+                relay.onPacketReceived(packFrame(pkt['packetType'], pkt['command'],pkt['data'], pkt['params']))
         rlist, _, _ = select.select([sys.stdin], [], [], 0)
         if rlist:
             line = sys.stdin.readline().strip().lower()
@@ -407,7 +383,7 @@ def runCommandInterface():
                 time.sleep(0.05)
                 continue
             handleUserInput(line)
-
+        relay.checkSecondTerminal(_ser)
         time.sleep(0.05)
 
 
@@ -417,6 +393,7 @@ def runCommandInterface():
 
 if __name__ == '__main__':
     openSerial()
+    relay.start()
     try:
         runCommandInterface()
     except KeyboardInterrupt:
@@ -424,5 +401,5 @@ if __name__ == '__main__':
     finally:
         if _camera is not None:
             alex_camera.cameraClose(_camera)
-
+        relay.shutdown()
         closeSerial()

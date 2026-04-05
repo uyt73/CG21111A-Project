@@ -1,0 +1,35 @@
+import struct
+
+# --- Packet Types ---
+PACKET_TYPE_COMMAND  = 0
+PACKET_TYPE_RESPONSE = 1
+PACKET_TYPE_MESSAGE  = 2
+
+# --- Command IDs (Must match packets.h) ---
+COMMAND_ESTOP       = 0
+COMMAND_COLOR       = 1
+COMMAND_FORWARD     = 2
+COMMAND_BACKWARD    = 3
+COMMAND_TURN_LEFT   = 4
+COMMAND_TURN_RIGHT  = 5
+COMMAND_SPEED_UP    = 6
+COMMAND_SPEED_DOWN  = 7
+COMMAND_STOP        = 8
+COMMAND_CLEAR_ESTOP = 9
+
+# --- Response & State Types ---
+RESP_OK     = 0
+RESP_STATUS = 1
+RESP_COLOR  = 2
+
+STATE_RUNNING = 0
+STATE_STOPPED = 1
+
+# --- Struct Framing Constants ---
+MAX_STR_LEN  = 32
+PARAMS_COUNT = 16
+# 1B Type + 1B Cmd + 2B Dummy + 32B Data + 64B Params = 100B
+TPACKET_SIZE = 100 
+TPACKET_FMT  = f'<BB2x{MAX_STR_LEN}s{PARAMS_COUNT}I'
+MAGIC        = b'\xDE\xAD'
+FRAME_SIZE   = 2 + TPACKET_SIZE + 1 # 103 Bytes
