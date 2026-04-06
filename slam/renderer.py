@@ -38,16 +38,20 @@ from settings import (
 _GLYPH_WALL       = '\u2588'  # full block
 _GLYPH_WALL_SOFT  = '\u2593'  # dark shade
 _GLYPH_FRONTIER   = '\u2592'  # medium shade
-_GLYPH_UNKNOWN    = '\u00b7'  # middle dot
+# _GLYPH_UNKNOWN    = '\u00b7'  # middle dot
+_GLYPH_UNKNOWN    = '.'  # middle dot
 _GLYPH_FREE       = '\u2591'  # light shade
-_GLYPH_FREE_CLEAR = '\u25e6'  # white bullet
+# _GLYPH_FREE_CLEAR = '\u25e6'  # white bullet
+_GLYPH_FREE_CLEAR = ' '  # white bullet
 _GLYPH_ROBOT      = '\u25c9'  # fisheye (robot marker)
 
 # Rich markup style strings for each map state.
-_STYLE_WALL       = 'bold bright_red'
+# _STYLE_WALL       = 'bold bright_red'
+_STYLE_WALL       = 'bold white'
 _STYLE_WALL_SOFT  = 'red'
 _STYLE_FRONTIER   = 'yellow'
-_STYLE_UNKNOWN    = 'bright_black'
+# _STYLE_UNKNOWN    = 'bright_black'
+_STYLE_UNKNOWN    = 'dim white'
 _STYLE_FREE       = 'green'
 _STYLE_FREE_CLEAR = 'bright_green'
 _STYLE_ROBOT      = 'bold cyan'
