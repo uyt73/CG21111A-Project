@@ -326,24 +326,36 @@ def generateSlamMap():
     if isEstopActive():
         print("Refused: E-Stop is active.")
         return
-    
+
     import sys
     import os
-
-    slam_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'slam')
-    if slam_path not in sys.path:
-        sys.path.append(slam_path)
-
-    from slam import lidar as lidar_driver
+    import time
     from breezyslam.algorithms import RMHC_SLAM
     from breezyslam.sensors import Laser
-    import time
+
+    print("\n--- INITIALIZING SLAM ---")
+    
+    # --- THE ULTIMATE IMPORT SHIELD ---
+    slam_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'slam')
+    
+    # 1. Put the slam folder at the VERY FRONT of Python's search path
+    sys.path.insert(0, slam_dir)
+    
+    # 2. Temporarily "hide" Activity 4's lidar folder from Python's memory cache
+    old_lidar = sys.modules.pop('lidar', None)
+    
+    # 3. Safely import the slam folder's lidar.py (and its settings.py)
+    import lidar as lidar_driver
+    
+    # 4. Put everything back to normal so we don't break Activity 4 later
+    sys.path.pop(0)
+    if old_lidar is not None:
+        sys.modules['lidar'] = old_lidar
+    # ----------------------------------
 
     MAP_SIZE_PIXELS = 800
     MAP_SIZE_METERS = 32
 
-    print("\n--- INITIALIZING SLAM ---")
-    
     # Use the exact sensor profile from your lab's settings
     laser = Laser(360, 5, 360, 12000) 
     slam = RMHC_SLAM(laser, MAP_SIZE_PIXELS, MAP_SIZE_METERS)
