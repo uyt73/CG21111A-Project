@@ -288,6 +288,12 @@ def handleCameraCommand():
 # ----------------------------------------------------------------
 # ACTIVITY 4: LIDAR
 # ----------------------------------------------------------------
+from breezyslam.algorithms import RMHC_SLAM
+from breezyslam.sensors import RPLidarA1 as LaserModel
+
+# Map size and resolution settings
+MAP_SIZE_PIXELS = 800
+MAP_SIZE_METERS = 32   # 32x32 meter map
 
 from lidar import alex_lidar
 import lidar_example_cli_plot
@@ -308,6 +314,63 @@ def handleLidarCommand():
 
     lidar_example_cli_plot.plot_single_scan()
 
+def generateSlamMap():
+    """
+    Runs a continuous SLAM loop. 
+    You can still drive the robot using a second terminal or predefined commands.
+    """
+    if isEstopActive():
+        print("REFUSED: E-Stop is active.")
+        return
+
+    print("\n--- INITIALIZING SLAM ---")
+    print("Please wait, spinning up LIDAR...")
+    
+    # 1. Initialize SLAM with the LIDAR model and map dimensions
+    slam = RMHC_SLAM(LaserModel(), MAP_SIZE_PIXELS, MAP_SIZE_METERS)
+    
+    # 2. Start the LIDAR motor
+    alex_lidar.start_motor()
+    time.sleep(2) # Give the motor time to reach full speed
+
+    print("Mapping started! Drive the robot slowly.")
+    print("Press Ctrl+C to STOP mapping and save the image.\n")
+
+    try:
+        scan_count = 0
+        # 3. Continuous mapping loop
+        for scan in alex_lidar.iter_scans():
+            # Extract distances (in mm) from the scan data
+            # Typically iter_scans yields tuples of (quality, angle, distance)
+            distances = [item[2] for item in scan]
+
+            # 4. Update the SLAM algorithm with the new distances
+            # (We pad or truncate to match the RPLidarA1's expected 360 points)
+            if len(distances) >= 360:
+                slam.update(distances[:360])
+                scan_count += 1
+                
+                if scan_count % 10 == 0:
+                    x, y, theta = slam.getpos()
+                    print(f"Scans processed: {scan_count} | Robot Pos: X={x/1000:.2f}m, Y={y/1000:.2f}m")
+
+    except KeyboardInterrupt:
+        print("\nMapping interrupted by user. Generating map file...")
+    
+    finally:
+        # 5. Stop the hardware and extract the map
+        alex_lidar.stop_motor()
+        
+        # Get the map bytes (0-255 grayscale values)
+        map_bytes = slam.getmap()
+        
+        # Save as a PGM image file (can be opened by most image viewers)
+        filename = f"moonbase_map_{int(time.time())}.pgm"
+        with open(filename, 'wb') as f:
+            f.write(f"P5\n{MAP_SIZE_PIXELS} {MAP_SIZE_PIXELS}\n255\n".encode())
+            f.write(map_bytes)
+            
+        print(f"SUCCESS: Map saved to {filename}")
 
 # ----------------------------------------------------------------
 # COMMAND-LINE INTERFACE
@@ -356,6 +419,8 @@ def handleUserInput(line):
     elif line == 'h':
         print("Stopping Robot")
         sendCommand(COMMAND_STOP)
+    elif line == 'm':
+        generateSlamMap()
     else:
         print(f"Unknown input: '{line}'. Valid: e, c, p, l, w, a, s, d, +, -")
 
