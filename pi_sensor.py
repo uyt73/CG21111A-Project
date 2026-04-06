@@ -321,21 +321,33 @@ def handleLidarCommand():
 def generateSlamMap():
     """
     Runs a continuous SLAM loop to build a map.
-    Includes hardware shields to prevent USB crashes.
+    Uses the lab's specific lidar_driver connection methods.
     """
     if isEstopActive():
         print("Refused: E-Stop is active.")
         return
 
+    import lidar as lidar_driver
+    from breezyslam.algorithms import RMHC_SLAM
+    from breezyslam.sensors import Laser
+    import time
+
     MAP_SIZE_PIXELS = 800
     MAP_SIZE_METERS = 32
 
     print("\n--- INITIALIZING SLAM ---")
-    slam = RMHC_SLAM(LaserModel(), MAP_SIZE_PIXELS, MAP_SIZE_METERS)
+    
+    # Use the exact sensor profile from your lab's settings
+    laser = Laser(360, 5, 360, 12000) 
+    slam = RMHC_SLAM(laser, MAP_SIZE_PIXELS, MAP_SIZE_METERS)
 
-    print("Starting LIDAR motor...")
-    alex_lidar.start_motor()
-    time.sleep(2)
+    print("Connecting to LIDAR...")
+    lidar_obj = lidar_driver.connect()
+    if lidar_obj is None:
+        print("ERROR: Could not connect to LIDAR. Is it plugged in?")
+        return
+
+    scan_mode = lidar_driver.get_scan_mode(lidar_obj)
 
     print("Mapping started! Drive the robot using your SECOND TERMINAL.")
     print("Press Ctrl+C in THIS terminal to STOP mapping and save the image.\n")
@@ -346,42 +358,67 @@ def generateSlamMap():
         # --- BULLETPROOF LOOP ---
         while True: 
             try:
-                scan_iterator = iter(alex_lidar.iter_scans())
+                scan_iterator = iter(lidar_driver.scan_rounds(lidar_obj, scan_mode))
                 while True: 
                     try:
-                        scan = next(scan_iterator)
+                        raw_angles, raw_distances = next(scan_iterator)
                     except StopIteration:
                         break
                     except Exception:
-                        # Catch dropped USB bytes
                         print("USB glitch caught. Recovering...")
                         time.sleep(0.5)
-                        break # Break to outer loop to restart iterator
+                        break 
 
-                    # Extract distances (iter_scans yields tuples: quality, angle, distance)
-                    distances = [item[2] for item in scan]
+                    # --- RESAMPLE TO EXACTLY 360 POINTS ---
+                    distances = [0.0] * 360
+                    counts = [0] * 360
+                    
+                    for angle, dist in zip(raw_angles, raw_distances):
+                        if dist > 0:
+                            # Convert Clockwise to Counter-Clockwise and find the degree bin
+                            bin_idx = int(round(-angle)) % 360
+                            distances[bin_idx] += dist
+                            counts[bin_idx] += 1
+                            
+                    final_distances = []
+                    for i in range(360):
+                        if counts[i] > 0:
+                            final_distances.append(int(distances[i] / counts[i]))
+                        else:
+                            # No reading here = wide open space (12000mm)
+                            final_distances.append(12000)
 
-                    # Pad/Truncate to exactly 360 points to prevent SLAM math errors
-                    if len(distances) != 360:
-                        distances = (distances + [0]*360)[:360]
-
-                    slam.update(distances)
+                    # Update the SLAM brain
+                    slam.update(final_distances)
                     scan_count += 1
 
+                    # Print an update every 10 scans so you know it's alive
                     if scan_count % 10 == 0:
                         x, y, theta = slam.getpos()
                         print(f"Scans: {scan_count} | Pos: X={x/1000:.2f}m, Y={y/1000:.2f}m")
 
             except Exception as e:
-                print(f"Hardware reset: {e}")
-                time.sleep(1.5)
+                print("Hard resetting USB connection...")
+                try:
+                    lidar_driver.disconnect(lidar_obj)
+                except Exception:
+                    pass
+                time.sleep(1.0)
+                lidar_obj = lidar_driver.connect()
+                if lidar_obj is None:
+                    break
+                scan_mode = lidar_driver.get_scan_mode(lidar_obj)
 
     except KeyboardInterrupt:
-        # Catching Ctrl+C here safely stops mapping without quitting pi_sensor.py!
+        # Catching Ctrl+C here safely stops mapping without quitting pi_sensor.py
         print("\nMapping interrupted by user. Generating map file...")
 
     finally:
-        alex_lidar.stop_motor()
+        # Always safely disconnect hardware
+        try:
+            lidar_driver.disconnect(lidar_obj)
+        except Exception:
+            pass
 
         # Extract map data from the algorithm
         map_bytes = bytearray(MAP_SIZE_PIXELS * MAP_SIZE_PIXELS)
