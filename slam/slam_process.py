@@ -309,11 +309,23 @@ def run_slam_process(pss: ProcessSharedState) -> None:
                     pss.set_status(note)
 
             except IndexError:
-                # HARDWARE SHIELD: The USB cord dropped a byte and crashed the driver.
-                # We catch it, wait a fraction of a second, and let the while loop
-                # spin up a brand new scan_rounds generator automatically!
-                pss.set_status("Recovering from USB error...")
-                time.sleep(0.2)
+                # HARDWARE SHIELD: The serial buffer is corrupted with garbage bytes.
+                # We must completely disconnect and reconnect to flush the pipe.
+                pss.set_status("Hard resetting USB connection...")
+                try:
+                    lidar_driver.disconnect(lidar)
+                except Exception:
+                    pass
+                
+                time.sleep(1.0) # Wait 1 full second for the hardware to settle
+                
+                # Reconnect from scratch
+                lidar = lidar_driver.connect()
+                if lidar is None:
+                    pss.set_error("CRITICAL: Failed to reconnect to LIDAR.")
+                    break
+                
+                scan_mode = lidar_driver.get_scan_mode(lidar)
                 continue
 
     except Exception as exc:
