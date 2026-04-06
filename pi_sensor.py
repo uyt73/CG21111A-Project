@@ -326,6 +326,9 @@ def generateSlamMap():
     if isEstopActive():
         print("Refused: E-Stop is active.")
         return
+    
+    import sys
+    import os
 
     slam_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'slam')
     if slam_path not in sys.path:
