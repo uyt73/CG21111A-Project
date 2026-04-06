@@ -485,13 +485,17 @@ def handleUserInput(line):
     elif line == 'l':
         handleLidarCommand()
     elif line == 'w':
-        sendCommand(COMMAND_FORWARD)
-    elif line == 's':
+        # sendCommand(COMMAND_FORWARD)
         sendCommand(COMMAND_BACKWARD)
+    elif line == 's':
+        # sendCommand(COMMAND_BACKWARD)
+        sendCommand(COMMAND_FORWARD)
     elif line == 'a':
-        sendCommand(COMMAND_TURN_LEFT)
-    elif line == 'd':
+        # sendCommand(COMMAND_TURN_LEFT)
         sendCommand(COMMAND_TURN_RIGHT)
+    elif line == 'd':
+        # sendCommand(COMMAND_TURN_RIGHT)
+        sendCommand(COMMAND_TURN_LEFT)
     elif line == '+':
         sendCommand(COMMAND_SPEED_UP)
     elif line == '-':
