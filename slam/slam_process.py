@@ -163,81 +163,158 @@ def run_slam_process(pss: ProcessSharedState) -> None:
     round_num = 0
     last_map_update = time.monotonic()
 
-    try:
-        # for raw_angles, raw_distances in lidar_driver.scan_rounds(lidar, scan_mode):
-        #     if pss.stop_event.is_set():
-        #         break
-        # --- BULLETPROOF LIDAR LOOP ---
-        scan_iterator = iter(lidar_driver.scan_rounds(lidar, scan_mode))
-        while True:
-            if pss.stop_event.is_set():
-                break
+    # try:
+    #     # for raw_angles, raw_distances in lidar_driver.scan_rounds(lidar, scan_mode):
+    #     #     if pss.stop_event.is_set():
+    #     #         break
+    #     # --- BULLETPROOF LIDAR LOOP ---
+    #     scan_iterator = iter(lidar_driver.scan_rounds(lidar, scan_mode))
+    #     while True:
+    #         if pss.stop_event.is_set():
+    #             break
                 
+    #         try:
+    #             # Try to pull the next scan from the LIDAR
+    #             raw_angles, raw_distances = next(scan_iterator)
+    #         except StopIteration:
+    #             break
+    #         except IndexError:
+    #             # HARDWARE SHIELD: The LIDAR sent a corrupted packet. 
+    #             # Ignore it and grab the next rotation!
+    #             continue
+    #         except Exception as e:
+    #             # Catch any other weird serial hiccups
+    #             continue
+
+    #         round_num += 1
+    #         pss.rounds_seen.value = round_num
+
+    #         # Skip the first few scans while the motor reaches full speed.
+    #         if round_num <= INITIAL_ROUNDS_SKIP:
+    #             pss.valid_points.value = 0
+    #             pss.set_status(f'warming up {round_num}/{INITIAL_ROUNDS_SKIP}')
+    #             continue
+
+    #         # Honour pause requests from the UI.
+    #         if pss.paused.value:
+    #             pss.set_status('paused')
+    #             continue
+
+    #         # Resample raw measurements into fixed-size angle bins.
+    #         scan_distances, valid = _resample_scan(raw_angles, raw_distances)
+    #         pss.valid_points.value = valid
+
+    #         # Choose which scan to feed SLAM.
+    #         if valid >= MIN_VALID_POINTS:
+    #             # Enough fresh data: do a full SLAM update.
+    #             slam.update(scan_distances, scan_angles_degrees=_SCAN_ANGLES)
+    #             previous_distances = list(scan_distances)
+    #             note = f'live ({valid} pts)'
+    #         elif previous_distances is not None:
+    #             # Too few fresh readings: reuse the last good scan to keep
+    #             # the pose estimate from drifting.
+    #             slam.update(previous_distances, scan_angles_degrees=_SCAN_ANGLES)
+    #             note = f'reusing previous ({valid} pts)'
+    #         else:
+    #             # No previous scan available yet; wait for a better scan.
+    #             pss.set_status(f'waiting ({valid} pts)')
+    #             continue
+
+    #         # Read the updated robot pose.
+    #         x_mm, y_mm, theta_deg = slam.getpos()
+    #         pss.x_mm.value = x_mm
+    #         pss.y_mm.value = y_mm
+    #         pss.theta_deg.value = theta_deg
+    #         pss.pose_version.value += 1
+
+    #         # Copy the updated map into shared memory at a throttled rate.
+    #         # Copying 1 MB on every scan would be expensive; once per second
+    #         # is enough for the UI to appear responsive.
+    #         now = time.monotonic()
+    #         if now - last_map_update >= MAP_UPDATE_INTERVAL:
+    #             slam.getmap(mapbytes)
+    #             pss.shm.buf[:len(mapbytes)] = mapbytes
+    #             pss.map_version.value += 1
+    #             last_map_update = now
+
+    #         pss.set_status(note)
+
+    # except Exception as exc:
+    #     pss.set_error(f'SLAM process error: {exc}')
+    # finally:
+    #     try:
+    #         lidar_driver.disconnect(lidar)
+    #     except Exception:
+    #         pass
+    #     pss.connected.value = False
+    #     pss.stopped.value = True
+    try:
+        # --- BULLETPROOF AUTO-RESTART LOOP ---
+        while not pss.stop_event.is_set():
             try:
-                # Try to pull the next scan from the LIDAR
-                raw_angles, raw_distances = next(scan_iterator)
-            except StopIteration:
-                break
+                # This creates a fresh connection to the LIDAR data stream
+                for raw_angles, raw_distances in lidar_driver.scan_rounds(lidar, scan_mode):
+                    if pss.stop_event.is_set():
+                        break
+
+                    round_num += 1
+                    pss.rounds_seen.value = round_num
+
+                    # Skip the first few scans while the motor reaches full speed.
+                    if round_num <= INITIAL_ROUNDS_SKIP:
+                        pss.valid_points.value = 0
+                        pss.set_status(f'warming up {round_num}/{INITIAL_ROUNDS_SKIP}')
+                        continue
+
+                    # Honour pause requests from the UI.
+                    if pss.paused.value:
+                        pss.set_status('paused')
+                        continue
+
+                    # Resample raw measurements into fixed-size angle bins.
+                    scan_distances, valid = _resample_scan(raw_angles, raw_distances)
+                    pss.valid_points.value = valid
+
+                    # Choose which scan to feed SLAM.
+                    if valid >= MIN_VALID_POINTS:
+                        # Enough fresh data: do a full SLAM update.
+                        slam.update(scan_distances, scan_angles_degrees=_SCAN_ANGLES)
+                        previous_distances = list(scan_distances)
+                        note = f'live ({valid} pts)'
+                    elif previous_distances is not None:
+                        # Too few fresh readings: reuse the last good scan to keep
+                        # the pose estimate from drifting.
+                        slam.update(previous_distances, scan_angles_degrees=_SCAN_ANGLES)
+                        note = f'reusing previous ({valid} pts)'
+                    else:
+                        # No previous scan available yet; wait for a better scan.
+                        pss.set_status(f'waiting ({valid} pts)')
+                        continue
+
+                    # Read the updated robot pose.
+                    x_mm, y_mm, theta_deg = slam.getpos()
+                    pss.x_mm.value = x_mm
+                    pss.y_mm.value = y_mm
+                    pss.theta_deg.value = theta_deg
+                    pss.pose_version.value += 1
+
+                    # Copy the updated map into shared memory at a throttled rate.
+                    now = time.monotonic()
+                    if now - last_map_update >= MAP_UPDATE_INTERVAL:
+                        slam.getmap(mapbytes)
+                        pss.shm.buf[:len(mapbytes)] = mapbytes
+                        pss.map_version.value += 1
+                        last_map_update = now
+
+                    pss.set_status(note)
+
             except IndexError:
-                # HARDWARE SHIELD: The LIDAR sent a corrupted packet. 
-                # Ignore it and grab the next rotation!
+                # HARDWARE SHIELD: The USB cord dropped a byte and crashed the driver.
+                # We catch it, wait a fraction of a second, and let the while loop
+                # spin up a brand new scan_rounds generator automatically!
+                pss.set_status("Recovering from USB error...")
+                time.sleep(0.2)
                 continue
-            except Exception as e:
-                # Catch any other weird serial hiccups
-                continue
-
-            round_num += 1
-            pss.rounds_seen.value = round_num
-
-            # Skip the first few scans while the motor reaches full speed.
-            if round_num <= INITIAL_ROUNDS_SKIP:
-                pss.valid_points.value = 0
-                pss.set_status(f'warming up {round_num}/{INITIAL_ROUNDS_SKIP}')
-                continue
-
-            # Honour pause requests from the UI.
-            if pss.paused.value:
-                pss.set_status('paused')
-                continue
-
-            # Resample raw measurements into fixed-size angle bins.
-            scan_distances, valid = _resample_scan(raw_angles, raw_distances)
-            pss.valid_points.value = valid
-
-            # Choose which scan to feed SLAM.
-            if valid >= MIN_VALID_POINTS:
-                # Enough fresh data: do a full SLAM update.
-                slam.update(scan_distances, scan_angles_degrees=_SCAN_ANGLES)
-                previous_distances = list(scan_distances)
-                note = f'live ({valid} pts)'
-            elif previous_distances is not None:
-                # Too few fresh readings: reuse the last good scan to keep
-                # the pose estimate from drifting.
-                slam.update(previous_distances, scan_angles_degrees=_SCAN_ANGLES)
-                note = f'reusing previous ({valid} pts)'
-            else:
-                # No previous scan available yet; wait for a better scan.
-                pss.set_status(f'waiting ({valid} pts)')
-                continue
-
-            # Read the updated robot pose.
-            x_mm, y_mm, theta_deg = slam.getpos()
-            pss.x_mm.value = x_mm
-            pss.y_mm.value = y_mm
-            pss.theta_deg.value = theta_deg
-            pss.pose_version.value += 1
-
-            # Copy the updated map into shared memory at a throttled rate.
-            # Copying 1 MB on every scan would be expensive; once per second
-            # is enough for the UI to appear responsive.
-            now = time.monotonic()
-            if now - last_map_update >= MAP_UPDATE_INTERVAL:
-                slam.getmap(mapbytes)
-                pss.shm.buf[:len(mapbytes)] = mapbytes
-                pss.map_version.value += 1
-                last_map_update = now
-
-            pss.set_status(note)
 
     except Exception as exc:
         pss.set_error(f'SLAM process error: {exc}')
