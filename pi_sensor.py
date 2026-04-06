@@ -158,6 +158,8 @@ def receiveFrame():
 
 def sendCommand(commandType, data=b'', params=None):
     """Send a framed COMMAND packet to the Arduino."""
+    # DEBUG:
+    print(f"DEBUG: Sending packet with Command ID: {commandType}")
     frame = packFrame(PACKET_TYPE_COMMAND, commandType, data=data, params=params)
     _ser.write(frame)
 
