@@ -441,7 +441,7 @@ def generateSlamMap():
 
         # Extract map data from the algorithm
         map_bytes = bytearray(MAP_SIZE_PIXELS * MAP_SIZE_PIXELS)
-        slam.getmap(mapbytes)
+        slam.getmap(map_bytes)
 
         # Save it as a viewable .pgm image file
         filename = f"moonbase_map_{int(time.time())}.pgm"
