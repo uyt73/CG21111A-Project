@@ -164,9 +164,27 @@ def run_slam_process(pss: ProcessSharedState) -> None:
     last_map_update = time.monotonic()
 
     try:
-        for raw_angles, raw_distances in lidar_driver.scan_rounds(lidar, scan_mode):
+        # for raw_angles, raw_distances in lidar_driver.scan_rounds(lidar, scan_mode):
+        #     if pss.stop_event.is_set():
+        #         break
+        # --- BULLETPROOF LIDAR LOOP ---
+        scan_iterator = iter(lidar_driver.scan_rounds(lidar, scan_mode))
+        while True:
             if pss.stop_event.is_set():
                 break
+                
+            try:
+                # Try to pull the next scan from the LIDAR
+                raw_angles, raw_distances = next(scan_iterator)
+            except StopIteration:
+                break
+            except IndexError:
+                # HARDWARE SHIELD: The LIDAR sent a corrupted packet. 
+                # Ignore it and grab the next rotation!
+                continue
+            except Exception as e:
+                # Catch any other weird serial hiccups
+                continue
 
             round_num += 1
             pss.rounds_seen.value = round_num
