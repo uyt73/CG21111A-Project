@@ -327,7 +327,7 @@ def generateSlamMap():
         print("Refused: E-Stop is active.")
         return
 
-    import lidar as lidar_driver
+    from slam import lidar as lidar_driver
     from breezyslam.algorithms import RMHC_SLAM
     from breezyslam.sensors import Laser
     import time
