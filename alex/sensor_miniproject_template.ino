@@ -146,18 +146,22 @@ int currentSpeed = 150; // Default starting speed
 void driveForward() {
     // TODO: Call your robotlib.ino forward function here
     forward(currentSpeed);
+    delay(500); stop();
 }
 void driveBackward() {
     // TODO: Call your robotlib.ino backward function here
     backward(currentSpeed);
+    delay(500); stop();
 }
 void turnLeft() {
     // TODO: Call your robotlib.ino left function here
-    ccw(currentSpeed);   
+    ccw(currentSpeed); 
+    delay(300); stop();  
 }
 void turnRight() {
     // TODO: Call your robotlib.ino right function here
     cw(currentSpeed);
+    delay(300); stop();
 }
 void changeSpeed(int delta) {
   currentSpeed += delta;
