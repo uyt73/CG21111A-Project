@@ -290,8 +290,8 @@ def handleCameraCommand():
 # ----------------------------------------------------------------
 # ACTIVITY 4: LIDAR
 # ----------------------------------------------------------------
-from breezyslam.algorithms import RMHC_SLAM
-from breezyslam.sensors import RPLidarA1 as LaserModel
+# from breezyslam.algorithms import RMHC_SLAM
+# from breezyslam.sensors import RPLidarA1 as LaserModel
 
 # Map size and resolution settings
 MAP_SIZE_PIXELS = 800
@@ -320,139 +320,139 @@ def handleLidarCommand():
 # ACTIVITY 2: SLAM MAPPING
 # ----------------------------------------------------------------
 
-def generateSlamMap():
-    """
-    Runs a continuous SLAM loop to build a map.
-    Uses the lab's specific lidar_driver connection methods.
-    """
-    if isEstopActive():
-        print("Refused: E-Stop is active.")
-        return
+# def generateSlamMap():
+#     """
+#     Runs a continuous SLAM loop to build a map.
+#     Uses the lab's specific lidar_driver connection methods.
+#     """
+#     if isEstopActive():
+#         print("Refused: E-Stop is active.")
+#         return
 
-    import sys
-    import os
-    import time
-    from breezyslam.algorithms import RMHC_SLAM
-    from breezyslam.sensors import Laser
+#     import sys
+#     import os
+#     import time
+#     from breezyslam.algorithms import RMHC_SLAM
+#     from breezyslam.sensors import Laser
 
-    print("\n--- INITIALIZING SLAM ---")
+#     print("\n--- INITIALIZING SLAM ---")
     
-    # --- THE ULTIMATE IMPORT SHIELD ---
-    slam_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'slam')
+#     # --- THE ULTIMATE IMPORT SHIELD ---
+#     slam_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'slam')
     
-    # 1. Put the slam folder at the VERY FRONT of Python's search path
-    sys.path.insert(0, slam_dir)
+#     # 1. Put the slam folder at the VERY FRONT of Python's search path
+#     sys.path.insert(0, slam_dir)
     
-    # 2. Temporarily "hide" Activity 4's lidar folder from Python's memory cache
-    old_lidar = sys.modules.pop('lidar', None)
+#     # 2. Temporarily "hide" Activity 4's lidar folder from Python's memory cache
+#     old_lidar = sys.modules.pop('lidar', None)
     
-    # 3. Safely import the slam folder's lidar.py (and its settings.py)
-    import lidar as lidar_driver
+#     # 3. Safely import the slam folder's lidar.py (and its settings.py)
+#     import lidar as lidar_driver
     
-    # 4. Put everything back to normal so we don't break Activity 4 later
-    sys.path.pop(0)
-    if old_lidar is not None:
-        sys.modules['lidar'] = old_lidar
-    # ----------------------------------
+#     # 4. Put everything back to normal so we don't break Activity 4 later
+#     sys.path.pop(0)
+#     if old_lidar is not None:
+#         sys.modules['lidar'] = old_lidar
+#     # ----------------------------------
 
-    MAP_SIZE_PIXELS = 800
-    MAP_SIZE_METERS = 32
+#     MAP_SIZE_PIXELS = 800
+#     MAP_SIZE_METERS = 32
 
-    # Use the exact sensor profile from your lab's settings
-    laser = Laser(360, 5, 360, 12000) 
-    slam = RMHC_SLAM(laser, MAP_SIZE_PIXELS, MAP_SIZE_METERS)
+#     # Use the exact sensor profile from your lab's settings
+#     laser = Laser(360, 5, 360, 12000) 
+#     slam = RMHC_SLAM(laser, MAP_SIZE_PIXELS, MAP_SIZE_METERS)
 
-    print("Connecting to LIDAR...")
-    lidar_obj = lidar_driver.connect()
-    if lidar_obj is None:
-        print("ERROR: Could not connect to LIDAR. Is it plugged in?")
-        return
+#     print("Connecting to LIDAR...")
+#     lidar_obj = lidar_driver.connect()
+#     if lidar_obj is None:
+#         print("ERROR: Could not connect to LIDAR. Is it plugged in?")
+#         return
 
-    scan_mode = lidar_driver.get_scan_mode(lidar_obj)
+#     scan_mode = lidar_driver.get_scan_mode(lidar_obj)
 
-    print("Mapping started! Drive the robot using your SECOND TERMINAL.")
-    print("Press Ctrl+C in THIS terminal to STOP mapping and save the image.\n")
+#     print("Mapping started! Drive the robot using your SECOND TERMINAL.")
+#     print("Press Ctrl+C in THIS terminal to STOP mapping and save the image.\n")
 
-    scan_count = 0
+#     scan_count = 0
     
-    try:
-        # --- BULLETPROOF LOOP ---
-        while True: 
-            try:
-                scan_iterator = iter(lidar_driver.scan_rounds(lidar_obj, scan_mode))
-                while True: 
-                    try:
-                        raw_angles, raw_distances = next(scan_iterator)
-                    except StopIteration:
-                        break
-                    except Exception:
-                        print("USB glitch caught. Recovering...")
-                        time.sleep(0.5)
-                        break 
+#     try:
+#         # --- BULLETPROOF LOOP ---
+#         while True: 
+#             try:
+#                 scan_iterator = iter(lidar_driver.scan_rounds(lidar_obj, scan_mode))
+#                 while True: 
+#                     try:
+#                         raw_angles, raw_distances = next(scan_iterator)
+#                     except StopIteration:
+#                         break
+#                     except Exception:
+#                         print("USB glitch caught. Recovering...")
+#                         time.sleep(0.5)
+#                         break 
 
-                    # --- RESAMPLE TO EXACTLY 360 POINTS ---
-                    distances = [0.0] * 360
-                    counts = [0] * 360
+#                     # --- RESAMPLE TO EXACTLY 360 POINTS ---
+#                     distances = [0.0] * 360
+#                     counts = [0] * 360
                     
-                    for angle, dist in zip(raw_angles, raw_distances):
-                        if dist > 0:
-                            # Convert Clockwise to Counter-Clockwise and find the degree bin
-                            bin_idx = int(round(-angle)) % 360
-                            distances[bin_idx] += dist
-                            counts[bin_idx] += 1
+#                     for angle, dist in zip(raw_angles, raw_distances):
+#                         if dist > 0:
+#                             # Convert Clockwise to Counter-Clockwise and find the degree bin
+#                             bin_idx = int(round(-angle)) % 360
+#                             distances[bin_idx] += dist
+#                             counts[bin_idx] += 1
                             
-                    final_distances = []
-                    for i in range(360):
-                        if counts[i] > 0:
-                            final_distances.append(int(distances[i] / counts[i]))
-                        else:
-                            # No reading here = wide open space (12000mm)
-                            final_distances.append(12000)
+#                     final_distances = []
+#                     for i in range(360):
+#                         if counts[i] > 0:
+#                             final_distances.append(int(distances[i] / counts[i]))
+#                         else:
+#                             # No reading here = wide open space (12000mm)
+#                             final_distances.append(12000)
 
-                    # Update the SLAM brain
-                    slam.update(final_distances)
-                    scan_count += 1
+#                     # Update the SLAM brain
+#                     slam.update(final_distances)
+#                     scan_count += 1
 
-                    # Print an update every 10 scans so you know it's alive
-                    if scan_count % 10 == 0:
-                        x, y, theta = slam.getpos()
-                        print(f"Scans: {scan_count} | Pos: X={x/1000:.2f}m, Y={y/1000:.2f}m")
+#                     # Print an update every 10 scans so you know it's alive
+#                     if scan_count % 10 == 0:
+#                         x, y, theta = slam.getpos()
+#                         print(f"Scans: {scan_count} | Pos: X={x/1000:.2f}m, Y={y/1000:.2f}m")
 
-            except Exception as e:
-                print("Hard resetting USB connection...")
-                try:
-                    lidar_driver.disconnect(lidar_obj)
-                except Exception:
-                    pass
-                time.sleep(1.0)
-                lidar_obj = lidar_driver.connect()
-                if lidar_obj is None:
-                    break
-                scan_mode = lidar_driver.get_scan_mode(lidar_obj)
+#             except Exception as e:
+#                 print("Hard resetting USB connection...")
+#                 try:
+#                     lidar_driver.disconnect(lidar_obj)
+#                 except Exception:
+#                     pass
+#                 time.sleep(1.0)
+#                 lidar_obj = lidar_driver.connect()
+#                 if lidar_obj is None:
+#                     break
+#                 scan_mode = lidar_driver.get_scan_mode(lidar_obj)
 
-    except KeyboardInterrupt:
-        # Catching Ctrl+C here safely stops mapping without quitting pi_sensor.py
-        print("\nMapping interrupted by user. Generating map file...")
+#     except KeyboardInterrupt:
+#         # Catching Ctrl+C here safely stops mapping without quitting pi_sensor.py
+#         print("\nMapping interrupted by user. Generating map file...")
 
-    finally:
-        # Always safely disconnect hardware
-        try:
-            lidar_driver.disconnect(lidar_obj)
-        except Exception:
-            pass
+#     finally:
+#         # Always safely disconnect hardware
+#         try:
+#             lidar_driver.disconnect(lidar_obj)
+#         except Exception:
+#             pass
 
-        # Extract map data from the algorithm
-        map_bytes = bytearray(MAP_SIZE_PIXELS * MAP_SIZE_PIXELS)
-        slam.getmap(map_bytes)
+#         # Extract map data from the algorithm
+#         map_bytes = bytearray(MAP_SIZE_PIXELS * MAP_SIZE_PIXELS)
+#         slam.getmap(map_bytes)
 
-        # Save it as a viewable .pgm image file
-        filename = f"moonbase_map_{int(time.time())}.pgm"
-        with open(filename, 'wb') as f:
-            f.write(f"P5\n{MAP_SIZE_PIXELS} {MAP_SIZE_PIXELS}\n255\n".encode())
-            f.write(map_bytes)
+#         # Save it as a viewable .pgm image file
+#         filename = f"moonbase_map_{int(time.time())}.pgm"
+#         with open(filename, 'wb') as f:
+#             f.write(f"P5\n{MAP_SIZE_PIXELS} {MAP_SIZE_PIXELS}\n255\n".encode())
+#             f.write(map_bytes)
 
-        print(f"SUCCESS: Map saved to {filename}")
-        print("Returning to sensor interface...\n")
+#         print(f"SUCCESS: Map saved to {filename}")
+#         print("Returning to sensor interface...\n")
 
 # ----------------------------------------------------------------
 # COMMAND-LINE INTERFACE
@@ -505,8 +505,8 @@ def handleUserInput(line):
     elif line == 'h':
         print("Stopping Robot")
         sendCommand(COMMAND_STOP)
-    elif line == 'm':
-        generateSlamMap()
+    # elif line == 'm':
+    #     generateSlamMap()
     else:
         print(f"Unknown input: '{line}'. Valid: e, c, p, l, w, a, s, d, +, -")
 
