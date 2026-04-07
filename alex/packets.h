@@ -31,6 +31,14 @@ typedef enum {
     COMMAND_SPEED_DOWN = 7,
     COMMAND_STOP = 8,
     COMMAND_CLEAR_ESTOP = 9
+
+    // ARM COMMAND TYPES
+    COMMAND_ARM_BASE = 10,
+    COMMAND_ARM_SHOULDER = 11,
+    COMMAND_ARM_ELBOW = 12,
+    COMMAND_ARM_GRIPPER = 13,
+    COMMAND_ARM_HOME = 14,
+    COMMAND_ARM_SPEED = 15
 } TCommandType;
 
 typedef enum {
