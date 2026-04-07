@@ -1,5 +1,4 @@
 /*
- * packets.h
  * Studio 13: Sensor Mini-Project
  *
  * TPacket protocol: enums, struct, and framing constants.
@@ -30,7 +29,7 @@ typedef enum {
     COMMAND_SPEED_UP = 6,
     COMMAND_SPEED_DOWN = 7,
     COMMAND_STOP = 8,
-    COMMAND_CLEAR_ESTOP = 9
+    COMMAND_CLEAR_ESTOP = 9,
 
     // ARM COMMAND TYPES
     COMMAND_ARM_BASE = 10,

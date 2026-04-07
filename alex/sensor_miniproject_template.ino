@@ -92,11 +92,11 @@ ISR(INT0_vect) {
 // Color sensor (TCS3200)
 // =============================================================
 
-#define OUT_PIN 2
-#define S0 3
-#define S1 4
-#define S2 5
-#define S3 6
+#define OUT_PIN 4
+#define S0 0
+#define S1 1
+#define S2 2
+#define S3 3
 
 static void colourSensorInit() {
     // Configure S pins as OUTPUT and OUT_PIN as INPUT
@@ -140,6 +140,163 @@ static void readColorChannels(uint32_t *r, uint32_t *g, uint32_t *b) {
     *g = measureChannel(1, 1); // Green
     *b = measureChannel(0, 1); // Blue
 }
+
+int currentSpeed = 150; // Default starting speed
+
+void driveForward() {
+    // TODO: Call your robotlib.ino forward function here
+    forward(currentSpeed);
+}
+void driveBackward() {
+    // TODO: Call your robotlib.ino backward function here
+    backward(currentSpeed);
+}
+void turnLeft() {
+    // TODO: Call your robotlib.ino left function here
+    ccw(currentSpeed);   
+}
+void turnRight() {
+    // TODO: Call your robotlib.ino right function here
+    cw(currentSpeed);
+}
+void changeSpeed(int delta) {
+  currentSpeed += delta;
+  if (currentSpeed > 255) currentSpeed = 255;
+  if (currentSpeed < 0) currentSpeed = 0;
+}
+
+// =============================================================
+// Arm control
+// =============================================================
+
+struct ArmPin {
+    volatile uint8_t *ddr;
+    volatile uint8_t *port;
+    uint8_t bit;
+};
+
+ArmPin basePin, shoulderPin, elbowPin, gripperPin;
+
+volatile uint16_t pulse[4] = {1500, 1500, 1500, 1000};
+
+int basePos = 90;
+int shoulderPos = 90;
+int elbowPos = 90;
+int gripperPos = 0;
+int msPerDeg = 10;
+
+void configureArmPins() {
+    basePin.ddr = &DDRL;
+    basePin.port = &PORTL;
+    basePin.bit = 0;   // D49 = PL0
+
+    shoulderPin.ddr = &DDRH;
+    shoulderPin.port = &PORTH;
+    shoulderPin.bit = 6;   // D9 = PH6
+
+    elbowPin.ddr = &DDRB;
+    elbowPin.port = &PORTB;
+    elbowPin.bit = 4;   // D10 = PB4
+
+    gripperPin.ddr = &DDRB;
+    gripperPin.port = &PORTB;
+    gripperPin.bit = 2;   // D51 = PB2
+}
+
+void setPinOutput(const ArmPin &p) {
+    *(p.ddr) |= (1 << p.bit);
+}
+
+void setPinHigh(const ArmPin &p) {
+    *(p.port) |= (1 << p.bit);
+}
+
+void setPinLow(const ArmPin &p) {
+    *(p.port) &= ~(1 << p.bit);
+}
+
+static uint16_t angleToUs(int angle) {
+    if (angle < 0) angle = 0;
+    if (angle > 180) angle = 180;
+    return 1000 + (uint32_t)angle * 1000 / 180;
+}
+
+void armSetBase(int angle) {
+    basePos = angle;
+    pulse[0] = angleToUs(angle);
+}
+
+void armSetShoulder(int angle) {
+    shoulderPos = angle;
+    pulse[1] = angleToUs(angle);
+}
+
+void armSetElbow(int angle) {
+    elbowPos = angle;
+    pulse[2] = angleToUs(angle);
+}
+
+void armSetGripper(int angle) {
+    if (angle < 0) angle = 0;
+    if (angle > 90) angle = 90;
+    gripperPos = angle;
+    pulse[3] = 1000 + (uint32_t)angle * 1000 / 180;
+}
+
+void armHome() {
+    armSetBase(90);
+    armSetShoulder(90);
+    armSetElbow(90);
+    armSetGripper(0);
+}
+
+void armSetSpeed(int val) {
+    if (val < 1) val = 1;
+    if (val > 50) val = 50;
+    msPerDeg = val;
+}
+
+void armInit() {
+    configureArmPins();
+
+    setPinOutput(basePin);
+    setPinOutput(shoulderPin);
+    setPinOutput(elbowPin);
+    setPinOutput(gripperPin);
+
+    armHome();
+
+    TCCR1A = 0;
+    TCCR1B = (1 << CS11);   // prescaler 8
+    TCNT1 = 0;
+}
+
+void armRefreshFrame() {
+    uint16_t p0 = pulse[0];
+    uint16_t p1 = pulse[1];
+    uint16_t p2 = pulse[2];
+    uint16_t p3 = pulse[3];
+
+    setPinHigh(basePin);
+    setPinHigh(shoulderPin);
+    setPinHigh(elbowPin);
+    setPinHigh(gripperPin);
+
+    TCNT1 = 0;
+    while (1) {
+        uint16_t t = TCNT1 / 2;   // 0.5 us per tick -> microseconds
+
+        if (t >= p0) setPinLow(basePin);
+        if (t >= p1) setPinLow(shoulderPin);
+        if (t >= p2) setPinLow(elbowPin);
+        if (t >= p3) setPinLow(gripperPin);
+
+        if (t >= 2000) break;
+    }
+
+    delay(20);
+}
+
 
 
 // =============================================================
@@ -196,6 +353,48 @@ static void handleCommand(const TPacket *cmd) {
             sendFrame(&pkt);
             break;
         }
+        case COMMAND_FORWARD:     driveForward();  break;
+        case COMMAND_BACKWARD:    driveBackward(); break;
+        case COMMAND_TURN_LEFT:   turnLeft();      break;
+        case COMMAND_TURN_RIGHT:  turnRight();     break;
+        case COMMAND_SPEED_UP:    changeSpeed(25); break;
+        case COMMAND_SPEED_DOWN:  changeSpeed(-25);break;
+        case COMMAND_ESTOP:       stop();          break;
+        case COMMAND_STOP:
+            currentSpeed = 0;
+            stop();
+            break;
+        case COMMAND_CLEAR_ESTOP: clearEstop();    break;
+
+        case COMMAND_ARM_BASE:
+            if (buttonState == STATE_RUNNING) armSetBase((int)cmd->params[0]);
+            sendResponse(RESP_OK, 0);
+            break;
+
+        case COMMAND_ARM_SHOULDER:
+            if (buttonState == STATE_RUNNING) armSetShoulder((int)cmd->params[0]);
+            sendResponse(RESP_OK, 0);
+            break;
+
+        case COMMAND_ARM_ELBOW:
+            if (buttonState == STATE_RUNNING) armSetElbow((int)cmd->params[0]);
+            sendResponse(RESP_OK, 0);
+            break;
+
+        case COMMAND_ARM_GRIPPER:
+            if (buttonState == STATE_RUNNING) armSetGripper((int)cmd->params[0]);
+            sendResponse(RESP_OK, 0);
+            break;
+
+        case COMMAND_ARM_HOME:
+            if (buttonState == STATE_RUNNING) armHome();
+            sendResponse(RESP_OK, 0);
+            break;
+
+        case COMMAND_ARM_SPEED:
+            armSetSpeed((int)cmd->params[0]);
+            sendResponse(RESP_OK, 0);
+            break;
     }
 }
 
@@ -219,6 +418,7 @@ void setup() {
     EIMSK |= (1 << INT0);
 
     colourSensorInit();
+    armInit();
 
     sei();
 }

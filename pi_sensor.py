@@ -455,6 +455,128 @@ def handleLidarCommand():
 #         print("Returning to sensor interface...\n")
 
 # ----------------------------------------------------------------
+# ROBOT ARM CONTROL HELPERS
+# ----------------------------------------------------------------
+
+def _parse_int_arg(text, name, lo=None, hi=None):
+    try:
+        value = int(text)
+    except ValueError:
+        print(f"Invalid {name}: '{text}' is not an integer.")
+        return None
+
+    if lo is not None and value < lo:
+        print(f"Invalid {name}: must be >= {lo}.")
+        return None
+    if hi is not None and value > hi:
+        print(f"Invalid {name}: must be <= {hi}.")
+        return None
+    return value
+
+
+def sendArmBase(angle):
+    if isEstopActive():
+        print("Refused: E-Stop is active.")
+        return
+    sendCommand(COMMAND_ARM_BASE, params=[angle] + [0] * (PARAMS_COUNT - 1))
+    print(f"Base -> {angle}")
+
+
+def sendArmShoulder(angle):
+    if isEstopActive():
+        print("Refused: E-Stop is active.")
+        return
+    sendCommand(COMMAND_ARM_SHOULDER, params=[angle] + [0] * (PARAMS_COUNT - 1))
+    print(f"Shoulder -> {angle}")
+
+
+def sendArmElbow(angle):
+    if isEstopActive():
+        print("Refused: E-Stop is active.")
+        return
+    sendCommand(COMMAND_ARM_ELBOW, params=[angle] + [0] * (PARAMS_COUNT - 1))
+    print(f"Elbow -> {angle}")
+
+
+def sendArmGripper(angle):
+    if isEstopActive():
+        print("Refused: E-Stop is active.")
+        return
+    sendCommand(COMMAND_ARM_GRIPPER, params=[angle] + [0] * (PARAMS_COUNT - 1))
+    print(f"Gripper -> {angle}")
+
+
+def sendArmHome():
+    if isEstopActive():
+        print("Refused: E-Stop is active.")
+        return
+    sendCommand(COMMAND_ARM_HOME)
+    print("Arm -> HOME")
+
+
+def sendArmSpeed(speed):
+    sendCommand(COMMAND_ARM_SPEED, params=[speed] + [0] * (PARAMS_COUNT - 1))
+    print(f"Arm speed -> {speed}")
+
+def handleArmCommand(line):
+    parts = line.strip().split()
+    if not parts:
+        return False
+
+    cmd = parts[0].upper()
+
+    if cmd == 'HOME':
+        sendArmHome()
+        return True
+
+    if cmd == 'ACC':
+        if len(parts) != 2:
+            print("Usage: ACC <1..50>")
+            return True
+        speed = _parse_int_arg(parts[1], "speed", 1, 50)
+        if speed is None:
+            return True
+        sendArmSpeed(speed)
+        return True
+
+    if cmd in ('B', 'S', 'E', 'G'):
+        if len(parts) != 2:
+            print(f"Usage: {cmd} <angle>")
+            return True
+
+        angle = _parse_int_arg(parts[1], "angle")
+        if angle is None:
+            return True
+
+        if cmd == 'B':
+            if angle < 0 or angle > 180:
+                print("Base angle must be 0..180")
+                return True
+            sendArmBase(angle)
+
+        elif cmd == 'S':
+            if angle < 0 or angle > 180:
+                print("Shoulder angle must be 0..180")
+                return True
+            sendArmShoulder(angle)
+
+        elif cmd == 'E':
+            if angle < 0 or angle > 180:
+                print("Elbow angle must be 0..180")
+                return True
+            sendArmElbow(angle)
+
+        elif cmd == 'G':
+            if angle < 0 or angle > 90:
+                print("Gripper angle must be 0..90")
+                return True
+            sendArmGripper(angle)
+
+        return True
+
+    return False
+
+# ----------------------------------------------------------------
 # COMMAND-LINE INTERFACE
 # ----------------------------------------------------------------
 
@@ -472,6 +594,10 @@ def handleUserInput(line):
     The 'e' case is pre-wired to send a software E-Stop command.
     TODO (Activities 2, 3 & 4): add 'c' (color), 'p' (camera) and 'l' (LIDAR).
     """
+
+    if handleArmCommand(line):
+        return
+
     if line == 'r':
         print("Clearing E-Stop state...")
         sendCommand(COMMAND_CLEAR_ESTOP)
@@ -505,11 +631,10 @@ def handleUserInput(line):
     elif line == 'h':
         print("Stopping Robot")
         sendCommand(COMMAND_STOP)
-    # elif line == 'm':
-    #     generateSlamMap()
     else:
-        print(f"Unknown input: '{line}'. Valid: e, c, p, l, w, a, s, d, +, -")
-
+        print("Unknown input.")
+        print("Valid movement keys: e, r, c, p, l, w, a, s, d, +, -, h")
+        print("Valid arm commands: B <0..180>, S <0..180>, E <0..180>, G <0..90>, HOME, ACC <1..50>")
 
 def runCommandInterface():
     """
@@ -518,7 +643,9 @@ def runCommandInterface():
     Uses select.select() to simultaneously receive packets from the Arduino
     and read typed user input from stdin without either blocking the other.
     """
-    print("Sensor interface ready. Type e / c / p / l / w / a / s / d / + / - and press Enter.")
+    print("Sensor interface ready.")
+    print("Drive: e / r / c / p / l / w / a / s / d / + / - / h")
+    print("Arm: B <0..180>, S <0..180>, E <0..180>, G <0..90>, HOME, ACC <1..50>")
     print("Press Ctrl+C to exit.\n")
 
     while True:
