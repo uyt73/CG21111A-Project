@@ -27,7 +27,7 @@
 // =============================================================
 // Activity 1: Bare-Metal Serial Enabled
 // =============================================================
-#define USE_BAREMETAL_SERIAL 1
+#define USE_BAREMETAL_SERIAL 0
 
 // =============================================================
 // Circular TX / RX buffers (used when USE_BAREMETAL_SERIAL == 1)
