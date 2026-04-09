@@ -1,34 +1,15 @@
 /*
  * sensor_miniproject_template.ino
  * Studio 13: Sensor Mini-Project
- *
- * This sketch is split across three files in this folder:
- *
- *   packets.h        - TPacket protocol: enums, struct, framing constants.
- *                      Must stay in sync with pi_sensor.py.
- *
- *   serial_driver.h  - Transport layer.  Set USE_BAREMETAL_SERIAL to 0
- *                      (default) for the Arduino Serial path that works
- *                      immediately, or to 1 to use the bare-metal USART
- *                      driver (Activity 1).  Also contains the
- *                      sendFrame / receiveFrame framing code.
- *
- *   sensor_miniproject_template.ino  (this file)
- *                    - Application logic: packet helpers, E-Stop state
- *                      machine, color sensor, setup(), and loop().
  */
 
 #include "packets.h"
 #include "serial_driver.h"
 
 // =============================================================
-// Packet helpers (pre-implemented for you)
+// Packet helpers
 // =============================================================
 
-/*
- * Build a zero-initialised TPacket, set packetType = PACKET_TYPE_RESPONSE,
- * command = resp, and params[0] = param.  Then call sendFrame().
- */
 static void sendResponse(TResponseType resp, uint32_t param) {
     TPacket pkt;
     memset(&pkt, 0, sizeof(pkt));
@@ -38,86 +19,100 @@ static void sendResponse(TResponseType resp, uint32_t param) {
     sendFrame(&pkt);
 }
 
-/*
- * Send a RESP_STATUS packet with the current state in params[0].
- */
 static void sendStatus(TState state) {
     sendResponse(RESP_STATUS, (uint32_t)state);
 }
 
 // =============================================================
-// E-Stop state machine
+// E-Stop state machine (Pin 21 / PD0 / INT0)
 // =============================================================
 
 volatile TState buttonState = STATE_RUNNING;
 volatile bool   stateChanged = false;
 
-/*
- * TODO (Activity 1): Implement the E-Stop ISR.
- *
- * Fire on any logical change on the button pin.
- * State machine (see handout diagram):
- *   RUNNING + press (pin HIGH)  ->  STOPPED, set stateChanged = true
- *   STOPPED + release (pin LOW) ->  RUNNING, set stateChanged = true
- *
- * Debounce the button.  You will also need to enable this interrupt
- * in setup() -- check the ATMega2560 datasheet for the correct
- * registers for your chosen pin.
- */
+volatile unsigned long lastDebounceTime = 0;
+const unsigned long DEBOUNCE_DELAY = 50;
 
+ISR(INT0_vect) {
+    unsigned long currentMillis = millis();
+    
+    if (currentMillis - lastDebounceTime > DEBOUNCE_DELAY) {
+        // Read Pin 21 (PD0)
+        bool isHigh = (PIND & (1 << PD0)); 
+        
+        // Because of the internal pull-up resistor, the logic is flipped:
+        // unpressed = HIGH, pressed = LOW
+        if (buttonState == STATE_RUNNING && !isHigh) {
+            buttonState = STATE_STOPPED;
+            stateChanged = true;
+        } 
+        else if (buttonState == STATE_STOPPED && isHigh) {
+            buttonState = STATE_RUNNING;
+            stateChanged = true;
+        }
+        
+        lastDebounceTime = currentMillis;
+    }
+}
 
 // =============================================================
-// Color sensor (TCS3200)
+// Color sensor (TCS3200) - Pins 22-26
 // =============================================================
 
-/*
- * TODO (Activity 2): Implement the color sensor.
- *
- * Wire the TCS3200 to the Arduino Mega and configure the output pins
- * (S0, S1, S2, S3) and the frequency output pin.
- *
- * Use 20% output frequency scaling (S0=HIGH, S1=LOW).  This is the
- * required standardised setting; it gives a convenient measurement range and
- * ensures all implementations report the same physical quantity.
- *
- * Use a timer to count rising edges on the sensor output over a fixed
- * window (e.g. 100 ms) for each color channel (red, green, blue).
- * Convert the edge count to hertz before sending:
- *   frequency_Hz = edge_count / measurement_window_s
- * For a 100 ms window: frequency_Hz = edge_count * 10.
- *
- * Implement a function that measures all three channels and stores the
- * frequency in Hz in three variables.
- *
- * Define your own command and response types in packets.h (and matching
- * constants in pi_sensor.py), then handle the command in handleCommand()
- * and send back the channel frequencies (in Hz) in a response packet.
- *
- * Example skeleton:
- *
- *   static void readColorChannels(uint32_t *r, uint32_t *g, uint32_t *b) {
- *       // Set S2/S3 for each channel, measure edge count, multiply by 10
- *       *r = measureChannel(0, 0) * 10;  // red,   in Hz
- *       *g = measureChannel(1, 1) * 10;  // green, in Hz
- *       *b = measureChannel(0, 1) * 10;  // blue,  in Hz
- *   }
- */
+#define S0_BIT PA0 // Pin 22
+#define S1_BIT PA1 // Pin 23
+#define S2_BIT PA2 // Pin 24
+#define S3_BIT PA3 // Pin 25
+#define OUT_BIT PA4 // Pin 26
+
+static void colourSensorInit() {
+    // Set S0-S3 as outputs, OUT as input
+    DDRA |= (1 << S0_BIT) | (1 << S1_BIT) | (1 << S2_BIT) | (1 << S3_BIT);
+    DDRA &= ~(1 << OUT_BIT);
+    
+    // Set 20% frequency scaling (S0 = HIGH, S1 = LOW)
+    PORTA |= (1 << S0_BIT);
+    PORTA &= ~(1 << S1_BIT);
+}
+
+static inline void setColorChannel(uint8_t s2, uint8_t s3) {
+    if (s2) PORTA |= (1 << S2_BIT); else PORTA &= ~(1 << S2_BIT);
+    if (s3) PORTA |= (1 << S3_BIT); else PORTA &= ~(1 << S3_BIT);
+}
+
+static uint32_t measureChannel(uint8_t s2, uint8_t s3) {
+    setColorChannel(s2, s3);
+    
+    // Brief delay to let the sensor filter settle
+    uint32_t startTime = micros();
+    while((uint32_t)micros() - startTime < 5000UL) {} 
+
+    uint32_t count = 0;
+    uint8_t last = (PINA & (1 << OUT_BIT)) ? 1 : 0; 
+    startTime = micros();
+    
+    // Count rising edges over a 100ms window
+    while((uint32_t)micros() - startTime < 100000UL) {
+        uint8_t now = (PINA & (1 << OUT_BIT)) ? 1 : 0;
+        if (last == 0 && now == 1) count++;
+        last = now;
+    }
+    
+    // Multiply edges in 100ms by 10 to get Hertz (edges per second)
+    return count * 10UL; 
+}
+
+static void readColorChannels(uint32_t *r, uint32_t *g, uint32_t *b) {
+    *r = measureChannel(0, 0); // Red
+    *g = measureChannel(1, 1); // Green
+    *b = measureChannel(0, 1); // Blue
+}
 
 
 // =============================================================
 // Command handler
 // =============================================================
 
-/*
- * Dispatch incoming commands from the Pi.
- *
- * COMMAND_ESTOP is pre-implemented: it sets the Arduino to STATE_STOPPED
- * and sends back RESP_OK followed by a RESP_STATUS update.
- *
- * TODO (Activity 2): add a case for your color sensor command.
- *   Call your color-reading function, then send a response packet with
- *   the channel frequencies in Hz.
- */
 static void handleCommand(const TPacket *cmd) {
     if (cmd->packetType != PACKET_TYPE_COMMAND) return;
 
@@ -128,10 +123,6 @@ static void handleCommand(const TPacket *cmd) {
             stateChanged = false;
             sei();
             {
-                // The data field of a TPacket can carry a short debug string (up to
-                // 31 characters).  pi_sensor.py prints it automatically for any packet
-                // where data is non-empty, so you can use it to send debug messages
-                // from the Arduino to the Pi terminal -- similar to Serial.print().
                 TPacket pkt;
                 memset(&pkt, 0, sizeof(pkt));
                 pkt.packetType = PACKET_TYPE_RESPONSE;
@@ -143,9 +134,21 @@ static void handleCommand(const TPacket *cmd) {
             sendStatus(STATE_STOPPED);
             break;
 
-        // TODO (Activity 2): add COMMAND_COLOR case here.
-        //   Call your color-reading function (which returns Hz), then send a
-        //   response packet with the three channel frequencies in Hz.
+        case COMMAND_COLOR:
+        {
+            uint32_t r, g, b;
+            readColorChannels(&r, &g, &b);
+            
+            TPacket pkt;
+            memset(&pkt, 0, sizeof(pkt));
+            pkt.packetType = PACKET_TYPE_RESPONSE;
+            pkt.command    = RESP_COLOR;
+            pkt.params[0]  = r;
+            pkt.params[1]  = g;
+            pkt.params[2]  = b;
+            sendFrame(&pkt);
+            break;
+        }
     }
 }
 
@@ -154,16 +157,27 @@ static void handleCommand(const TPacket *cmd) {
 // =============================================================
 
 void setup() {
-    // Initialise the serial link at 9600 baud.
-    // Serial.begin() is used by default; usartInit() takes over once
-    // USE_BAREMETAL_SERIAL is set to 1 in serial_driver.h.
 #if USE_BAREMETAL_SERIAL
     usartInit(103);   // 9600 baud at 16 MHz
 #else
     Serial.begin(9600);
 #endif
-    // TODO (Activity 1): configure the button pin and its external interrupt,
-    // then call sei() to enable global interrupts.
+
+    // 1. Configure E-Stop Pin (Pin 21 / PD0)
+    DDRD &= ~(1 << PD0); // Set as input
+    PORTD |= (1 << PD0); // Enable internal pull-up resistor to prevent floating
+    
+    // 2. Configure INT0 to fire on ANY logic change
+    EICRA |= (1 << ISC00);
+    EICRA &= ~(1 << ISC01);
+    
+    // 3. Enable INT0 in the mask register
+    EIMSK |= (1 << INT0);
+
+    // 4. Initialize Color Sensor
+    colourSensorInit();
+
+    // Enable global interrupts
     sei();
 }
 
