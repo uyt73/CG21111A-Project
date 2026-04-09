@@ -6,16 +6,16 @@
  *
  * USE_BAREMETAL_SERIAL controls which transport path is compiled in:
  *
- *   0 (default) - sendFrame() uses Serial.write() and receiveFrame()
- *                 uses Serial.available() / Serial.read().  The sketch
- *                 works immediately with no further changes needed, so
- *                 you can test the E-Stop and color sensor activities
- *                 before touching the serial driver.
+ * 0 (default) - sendFrame() uses Serial.write() and receiveFrame()
+ * uses Serial.available() / Serial.read().  The sketch
+ * works immediately with no further changes needed, so
+ * you can test the E-Stop and color sensor activities
+ * before touching the serial driver.
  *
- *   1           - sendFrame() and receiveFrame() use the circular
- *                 tx_buf / rx_buf buffers driven by the four stubs you
- *                 implement in Activity 1.  Change this to 1 once
- *                 txEnqueue(), rxDequeue(), and both ISRs are working.
+ * 1           - sendFrame() and receiveFrame() use the circular
+ * tx_buf / rx_buf buffers driven by the four stubs you
+ * implement in Activity 1.  Change this to 1 once
+ * txEnqueue(), rxDequeue(), and both ISRs are working.
  */
 
 #pragma once
@@ -25,10 +25,9 @@
 #include "packets.h"
 
 // =============================================================
-// TODO (Activity 1, step 2): change this to 1 once txEnqueue(),
-// rxDequeue(), and both ISRs are implemented and working.
+// Activity 1: Bare-Metal Serial Enabled
 // =============================================================
-#define USE_BAREMETAL_SERIAL 0
+#define USE_BAREMETAL_SERIAL 1
 
 // =============================================================
 // Circular TX / RX buffers (used when USE_BAREMETAL_SERIAL == 1)
@@ -75,14 +74,33 @@ void usartInit(uint16_t ubrr) {
  * interrupt (UDRIE0) and return true.  Must NOT block.
  */
 bool txEnqueue(const uint8_t *data, uint8_t len) {
-    // TODO
-    return false;
+    uint8_t free_space = (tx_tail - tx_head - 1) & TX_BUFFER_MASK;
+    if (len > free_space) return false;
+
+    for (uint8_t i = 0; i < len; i++) {
+        tx_buf[tx_head] = data[i];
+        tx_head = (tx_head + 1) & TX_BUFFER_MASK;
+    }
+    
+    // Enable the Data Register Empty interrupt
+    UCSR0B |= (1 << UDRIE0); 
+    return true;
 }
 
 // TODO (Activity 1): Implement the TX Data Register Empty ISR.
 // Vector: USART0_UDRE_vect
 // Drain one byte from tx_buf into UDR0; when the buffer is empty,
 // clear the UDRIE0 bit to stop the ISR from firing.
+ISR(USART0_UDRE_vect) {
+    if (tx_head == tx_tail) {
+        // Buffer is empty, disable the interrupt
+        UCSR0B &= ~(1 << UDRIE0);
+    } else {
+        // Load the next byte into the hardware transmission register
+        UDR0 = tx_buf[tx_tail];
+        tx_tail = (tx_tail + 1) & TX_BUFFER_MASK;
+    }
+}
 
 /*
  * TODO (Activity 1): Implement rxDequeue().
@@ -92,8 +110,14 @@ bool txEnqueue(const uint8_t *data, uint8_t len) {
  * anything and return false.  Must NOT block.
  */
 bool rxDequeue(uint8_t *data, uint8_t len) {
-    // TODO
-    return false;
+    uint8_t available = (rx_head - rx_tail) & RX_BUFFER_MASK;
+    if (available < len) return false;
+
+    for (uint8_t i = 0; i < len; i++) {
+        data[i] = rx_buf[rx_tail];
+        rx_tail = (rx_tail + 1) & RX_BUFFER_MASK;
+    }
+    return true;
 }
 
 #endif
@@ -102,6 +126,20 @@ bool rxDequeue(uint8_t *data, uint8_t len) {
 // Vector: USART0_RX_vect
 // Read UDR0 immediately.  If the buffer is not full, store the byte
 // and advance the write index; otherwise discard it.
+#if USE_BAREMETAL_SERIAL
+ISR(USART0_RX_vect) {
+    // Must read UDR0 immediately to clear the hardware flag
+    uint8_t incoming_byte = UDR0; 
+    
+    uint8_t next_head = (rx_head + 1) & RX_BUFFER_MASK;
+    
+    // If there is room in the buffer, store it
+    if (next_head != rx_tail) {
+        rx_buf[rx_head] = incoming_byte;
+        rx_head = next_head;
+    }
+}
+#endif
 
 // =============================================================
 // Framing: magic number + XOR checksum (pre-implemented)
