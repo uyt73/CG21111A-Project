@@ -1,10 +1,13 @@
 /*
  * sensor_miniproject_template.ino
- * Studio 13: Sensor Mini-Project
+ * Studio 15 Merge: Movement & Sensors
  */
 
 #include "packets.h"
 #include "serial_driver.h"
+
+// Speed variable for movement commands [cite: 299]
+int robotSpeed = 150; 
 
 // =============================================================
 // Packet helpers
@@ -24,7 +27,7 @@ static void sendStatus(TState state) {
 }
 
 // =============================================================
-// E-Stop state machine (Pin 21 / PD0 / INT0)
+// E-Stop state machine (Pin 21 / PD0 / INT0) [cite: 258]
 // =============================================================
 
 volatile TState buttonState = STATE_RUNNING;
@@ -37,11 +40,8 @@ ISR(INT0_vect) {
     unsigned long currentMillis = millis();
     
     if (currentMillis - lastDebounceTime > DEBOUNCE_DELAY) {
-        // Read Pin 21 (PD0)
         bool isHigh = (PIND & (1 << PD0)); 
         
-        // Because of the internal pull-up resistor, the logic is flipped:
-        // unpressed = HIGH, pressed = LOW
         if (buttonState == STATE_RUNNING && !isHigh) {
             buttonState = STATE_STOPPED;
             stateChanged = true;
@@ -56,21 +56,18 @@ ISR(INT0_vect) {
 }
 
 // =============================================================
-// Color sensor (TCS3200) - Pins 22-26
+// Color sensor (TCS3200) - Pins 22-26 [cite: 264]
 // =============================================================
 
-#define S0_BIT PA0 // Pin 22
-#define S1_BIT PA1 // Pin 23
-#define S2_BIT PA2 // Pin 24
-#define S3_BIT PA3 // Pin 25
-#define OUT_BIT PA4 // Pin 26
+#define S0_BIT PA0 
+#define S1_BIT PA1 
+#define S2_BIT PA2 
+#define S3_BIT PA3 
+#define OUT_BIT PA4 
 
 static void colourSensorInit() {
-    // Set S0-S3 as outputs, OUT as input
     DDRA |= (1 << S0_BIT) | (1 << S1_BIT) | (1 << S2_BIT) | (1 << S3_BIT);
     DDRA &= ~(1 << OUT_BIT);
-    
-    // Set 20% frequency scaling (S0 = HIGH, S1 = LOW)
     PORTA |= (1 << S0_BIT);
     PORTA &= ~(1 << S1_BIT);
 }
@@ -82,8 +79,6 @@ static inline void setColorChannel(uint8_t s2, uint8_t s3) {
 
 static uint32_t measureChannel(uint8_t s2, uint8_t s3) {
     setColorChannel(s2, s3);
-    
-    // Brief delay to let the sensor filter settle
     uint32_t startTime = micros();
     while((uint32_t)micros() - startTime < 5000UL) {} 
 
@@ -91,26 +86,22 @@ static uint32_t measureChannel(uint8_t s2, uint8_t s3) {
     uint8_t last = (PINA & (1 << OUT_BIT)) ? 1 : 0; 
     startTime = micros();
     
-    // Count rising edges over a 100ms window
     while((uint32_t)micros() - startTime < 100000UL) {
         uint8_t now = (PINA & (1 << OUT_BIT)) ? 1 : 0;
         if (last == 0 && now == 1) count++;
         last = now;
     }
-    
-    // Multiply edges in 100ms by 10 to get Hertz (edges per second)
     return count * 10UL; 
 }
 
 static void readColorChannels(uint32_t *r, uint32_t *g, uint32_t *b) {
-    *r = measureChannel(0, 0); // Red
-    *g = measureChannel(1, 1); // Green
-    *b = measureChannel(0, 1); // Blue
+    *r = measureChannel(0, 0); 
+    *g = measureChannel(1, 1); 
+    *b = measureChannel(0, 1); 
 }
 
-
 // =============================================================
-// Command handler
+// Command handler (Movement commands integrated) [cite: 279]
 // =============================================================
 
 static void handleCommand(const TPacket *cmd) {
@@ -122,15 +113,8 @@ static void handleCommand(const TPacket *cmd) {
             buttonState  = STATE_STOPPED;
             stateChanged = false;
             sei();
-            {
-                TPacket pkt;
-                memset(&pkt, 0, sizeof(pkt));
-                pkt.packetType = PACKET_TYPE_RESPONSE;
-                pkt.command    = RESP_OK;
-                strncpy(pkt.data, "This is a debug message", sizeof(pkt.data) - 1);
-                pkt.data[sizeof(pkt.data) - 1] = '\0';
-                sendFrame(&pkt);
-            }
+            stop(); // Ensure motors stop on software E-stop [cite: 306]
+            sendResponse(RESP_OK, 0);
             sendStatus(STATE_STOPPED);
             break;
 
@@ -138,7 +122,6 @@ static void handleCommand(const TPacket *cmd) {
         {
             uint32_t r, g, b;
             readColorChannels(&r, &g, &b);
-            
             TPacket pkt;
             memset(&pkt, 0, sizeof(pkt));
             pkt.packetType = PACKET_TYPE_RESPONSE;
@@ -149,6 +132,44 @@ static void handleCommand(const TPacket *cmd) {
             sendFrame(&pkt);
             break;
         }
+
+        // --- Studio 15 Movement Commands --- [cite: 217, 305]
+        case COMMAND_FORWARD:
+            forward(robotSpeed);
+            sendResponse(RESP_OK, 0);
+            break;
+
+        case COMMAND_BACKWARD:
+            backward(robotSpeed);
+            sendResponse(RESP_OK, 0);
+            break;
+
+        case COMMAND_TURN_LEFT:
+            ccw(robotSpeed);
+            sendResponse(RESP_OK, 0);
+            break;
+
+        case COMMAND_TURN_RIGHT:
+            cw(robotSpeed);
+            sendResponse(RESP_OK, 0);
+            break;
+
+        case COMMAND_STOP:
+            stop();
+            sendResponse(RESP_OK, 0);
+            break;
+
+        case COMMAND_SPEED_UP:
+            robotSpeed += 20;
+            if (robotSpeed > 255) robotSpeed = 255;
+            sendResponse(RESP_OK, robotSpeed);
+            break;
+
+        case COMMAND_SPEED_DOWN:
+            robotSpeed -= 20;
+            if (robotSpeed < 0) robotSpeed = 0;
+            sendResponse(RESP_OK, robotSpeed);
+            break;
     }
 }
 
@@ -158,40 +179,44 @@ static void handleCommand(const TPacket *cmd) {
 
 void setup() {
 #if USE_BAREMETAL_SERIAL
-    usartInit(103);   // 9600 baud at 16 MHz
+    usartInit(103);
 #else
     Serial.begin(9600);
 #endif
 
-    // 1. Configure E-Stop Pin (Pin 21 / PD0)
-    DDRD &= ~(1 << PD0); // Set as input
-    PORTD |= (1 << PD0); // Enable internal pull-up resistor to prevent floating
+    // 1. Configure E-Stop Pin (Pin 21 / PD0) [cite: 289]
+    DDRD &= ~(1 << PD0); 
+    PORTD |= (1 << PD0); 
     
-    // 2. Configure INT0 to fire on ANY logic change
+    // 2. Configure INT0 to fire on ANY logic change [cite: 291]
     EICRA |= (1 << ISC00);
     EICRA &= ~(1 << ISC01);
     
-    // 3. Enable INT0 in the mask register
+    // 3. Enable INT0 in the mask register [cite: 292]
     EIMSK |= (1 << INT0);
 
-    // 4. Initialize Color Sensor
+    // 4. Initialize Color Sensor [cite: 293]
     colourSensorInit();
 
-    // Enable global interrupts
+    // 5. Ensure all motors start stopped
+    stop(); [cite: 306]
+
     sei();
 }
 
 void loop() {
-    // --- 1. Report any E-Stop state change to the Pi ---
     if (stateChanged) {
         cli();
         TState state = buttonState;
         stateChanged = false;
         sei();
+        
+        if (state == STATE_STOPPED) {
+            stop(); // Cut motor power immediately if button pressed [cite: 306]
+        }
         sendStatus(state);
     }
 
-    // --- 2. Process incoming commands from the Pi ---
     TPacket incoming;
     if (receiveFrame(&incoming)) {
         handleCommand(&incoming);
