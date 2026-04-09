@@ -21,11 +21,10 @@ ISR(INT0_vect) {
     if (currentMillis - lastDebounceTime > DEBOUNCE_DELAY) {
         bool isHigh = (PIND & (1 << PD0)); 
         
-        if (buttonState == STATE_RUNNING && isHigh) {
+        if (buttonState == STATE_RUNNING && !isHigh) {
             buttonState = STATE_STOPPED;
             stateChanged = true;
-        } 
-        else if (buttonState == STATE_STOPPED && !isHigh) {
+        } else if (buttonState == STATE_STOPPED && isHigh) {
             buttonState = STATE_RUNNING;
             stateChanged = true;
         }
@@ -174,6 +173,7 @@ void setup() {
 
     // Init E-Stop Button Interrupt (INT0)
     DDRD &= ~(1 << PD0);
+    PORTD |= (1 << PD0);
     EICRA |= (1 << ISC00);
     EICRA &= ~(1 << ISC01);
     EIMSK |= (1 << INT0);
