@@ -22,15 +22,13 @@ typedef enum {
 
 typedef enum {
     COMMAND_ESTOP = 0,
-    COMMAND_COLOR = 1
-    // TODO (Activity 2): add your own command type for the color sensor (DONE)
+    // TODO (Activity 2): add your own command type for the color sensor
 } TCommandType;
 
 typedef enum {
     RESP_OK     = 0,
     RESP_STATUS = 1,
-    RESP_COLOR = 2
-    // TODO (Activity 2): add your own response type for the color sensor (DONE)
+    // TODO (Activity 2): add your own response type for the color sensor
 } TResponseType;
 
 typedef enum {

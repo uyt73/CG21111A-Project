@@ -49,6 +49,9 @@ static void sendStatus(TState state) {
 // E-Stop state machine
 // =============================================================
 
+volatile TState buttonState = STATE_RUNNING;
+volatile bool   stateChanged = false;
+
 /*
  * TODO (Activity 1): Implement the E-Stop ISR.
  *
@@ -61,35 +64,6 @@ static void sendStatus(TState state) {
  * in setup() -- check the ATMega2560 datasheet for the correct
  * registers for your chosen pin.
  */
-
-volatile TState buttonState = STATE_RUNNING;
-volatile bool   stateChanged = false;
-
-#define ESTOP_DDR   DDRE
-#define ESTOP_PORT  PORTE
-#define ESTOP_PINR  PINE
-#define ESTOP_BIT   4       // PE4 = Arduino Mega D2 = INT4
-
-volatile unsigned long lastDebounceTime = 0;
-#define DEBOUNCE_MS 250
-
-ISR(INT4_vect) {
-    unsigned long now = millis();
-
-    if ((now - lastDebounceTime) < DEBOUNCE_MS) return;
-    lastDebounceTime = now;
-
-    uint8_t pinHigh = (ESTOP_PINR & (1 << ESTOP_BIT)) ? 1 : 0;
-
-    if (buttonState == STATE_RUNNING && pinHigh) {
-        buttonState = STATE_STOPPED;
-        stateChanged = true;
-    }
-    else if (buttonState == STATE_STOPPED && !pinHigh) {
-        buttonState = STATE_RUNNING;
-        stateChanged = true;
-    }
-}
 
 
 // =============================================================
@@ -144,54 +118,6 @@ ISR(INT4_vect) {
  *   Call your color-reading function, then send a response packet with
  *   the channel frequencies in Hz.
  */
- 
-//PORTA
-
-#define OUT_PIN 2
-#define S0 3
-#define S1 4
-#define S2 5
-#define S3 6
-
-static void colourSensorInit() {
-    // Configure S pins AND OUTpin
-    DDRA |= (1 << S0) | (1 << S1) | (1 << S2) | (1 << S3);
-    DDRA &= ~(1 << OUT_PIN);
-    // Setting to 20%
-    PORTA |= (1 << S0);
-    PORTA &= ~(1 << S1);
-}
-
-static inline void setColorChannel(uint8_t s2, uint8_t s3) {
-    if (s2) PORTA |= (1 << S2);
-    else    PORTA &= ~(1 << S2);
-    if (s3) PORTA |= (1 << S3);
-    else    PORTA &= ~(1 << S3);
-}
-
-static uint32_t measureChannel(uint8_t s2, uint8_t s3) {
-    setColorChannel(s2, s3);
-    uint32_t startTime = micros();
-    while((uint32_t)micros() - startTime < 5000UL) {}
-
-    uint32_t count = 0;
-    uint8_t last = (PINA & (1 << OUT_PIN)) ? 1 : 0;
-    startTime = micros();
-    while((uint32_t)micros() - startTime < 100000UL) {
-        uint8_t now = (PINA & (1 << OUT_PIN)) ? 1 : 0;
-        if (last == 0 && now == 1) count++;
-        last = now;
-    }
-    return count * 10UL;
-}
-
-static void readColorChannels(uint32_t *r, uint32_t *g, uint32_t *b) {
-    *r = measureChannel(0, 0);
-    *g = measureChannel(1, 1);
-    *b = measureChannel(0, 1);
-}
-
-
 static void handleCommand(const TPacket *cmd) {
     if (cmd->packetType != PACKET_TYPE_COMMAND) return;
 
@@ -220,20 +146,6 @@ static void handleCommand(const TPacket *cmd) {
         // TODO (Activity 2): add COMMAND_COLOR case here.
         //   Call your color-reading function (which returns Hz), then send a
         //   response packet with the three channel frequencies in Hz.
-        case COMMAND_COLOR:
-        {
-            uint32_t r, g, b;
-            readColorChannels(&r, &g, &b);
-            TPacket pkt; 
-             memset(&pkt, 0, sizeof(pkt));
-            pkt.packetType = PACKET_TYPE_RESPONSE;
-            pkt.command = RESP_COLOR;
-            pkt.params[0] = r;
-            pkt.params[1] = g;
-            pkt.params[2] = b;
-            sendFrame(&pkt);
-            break;
-        }
     }
 }
 
@@ -252,15 +164,6 @@ void setup() {
 #endif
     // TODO (Activity 1): configure the button pin and its external interrupt,
     // then call sei() to enable global interrupts.
-    ESTOP_DDR &= ~(1 << ESTOP_BIT);
-    ESTOP_PORT &= ~(1 << ESTOP_BIT);
-
-    EICRB &= ~(1 << ISC41);
-    EICRB |=  (1 << ISC40);
-
-    EIMSK |= (1 << INT4);
-
-    colourSensorInit();
     sei();
 }
 
