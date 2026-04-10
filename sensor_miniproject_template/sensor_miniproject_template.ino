@@ -199,7 +199,7 @@ void setup() {
     colourSensorInit();
 
     // 5. Ensure all motors start stopped
-    stop(); [cite: 306]
+    stop();
 
     sei();
 }
