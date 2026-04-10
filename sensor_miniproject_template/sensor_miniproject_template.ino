@@ -255,39 +255,6 @@ static void handleCommand(const TPacket *cmd) {
             break;
 
         // --- 4-DOF Bare-Metal Arm Commands ---
-        case COMMAND_BASE_LEFT:
-            baseAngle -= 5;
-            setServoAngle(0, baseAngle);
-            sendResponse(RESP_OK, 0);
-            break;
-        case COMMAND_BASE_RIGHT:
-            baseAngle += 5;
-            setServoAngle(0, baseAngle);
-            sendResponse(RESP_OK, 0);
-            break;
-            
-        case COMMAND_SHOULDER_UP:
-            shoulderAngle -= 5;
-            setServoAngle(1, shoulderAngle);
-            sendResponse(RESP_OK, 0);
-            break;
-        case COMMAND_SHOULDER_DOWN:
-            shoulderAngle += 5;
-            setServoAngle(1, shoulderAngle);
-            sendResponse(RESP_OK, 0);
-            break;
-            
-        case COMMAND_ELBOW_UP:
-            elbowAngle -= 5;
-            setServoAngle(2, elbowAngle);
-            sendResponse(RESP_OK, 0);
-            break;
-        case COMMAND_ELBOW_DOWN:
-            elbowAngle += 5;
-            setServoAngle(2, elbowAngle);
-            sendResponse(RESP_OK, 0);
-            break;
-            
         case COMMAND_GRIPPER_OPEN:
             gripperAngle -= 5;
             setServoAngle(3, gripperAngle);
@@ -296,6 +263,22 @@ static void handleCommand(const TPacket *cmd) {
         case COMMAND_GRIPPER_CLOSE:
             gripperAngle += 5;
             setServoAngle(3, gripperAngle);
+            sendResponse(RESP_OK, 0);
+            break;
+            
+        case COMMAND_SET_BASE:
+            baseAngle = cmd->params[0]; // Grab user angle from packet
+            setServoAngle(0, baseAngle);
+            sendResponse(RESP_OK, 0);
+            break;
+        case COMMAND_SET_SHOULDER:
+            shoulderAngle = cmd->params[0]; // Grab user angle from packet
+            setServoAngle(1, shoulderAngle);
+            sendResponse(RESP_OK, 0);
+            break;
+        case COMMAND_SET_ELBOW:
+            elbowAngle = cmd->params[0]; // Grab user angle from packet
+            setServoAngle(2, elbowAngle);
             sendResponse(RESP_OK, 0);
             break;
     }

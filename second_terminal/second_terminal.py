@@ -2,13 +2,6 @@
 """
 Studio 16: Robot Integration
 second_terminal.py  -  Second operator terminal (Arm Control).
-
-This terminal connects to pi_sensor.py over TCP.  It:
-  - Displays every TPacket forwarded from the robot (via pi_sensor.py).
-  - Handles the 4-DOF Robotic Arm controls.
-  - Sends a software E-Stop command when you type 'e'.
-
-Run pi_sensor.py FIRST (it starts the TCP server), then run this script.
 """
 
 import select
@@ -17,19 +10,12 @@ import sys
 import time
 import os
 
-# ---------------------------------------------------------------------------
-# Import Shared Packets
-# ---------------------------------------------------------------------------
-# Add parent directory to path so we can import packets.py
+# --- Import Shared Packets ---
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from packets import *
 
-# net_utils is imported with an absolute import
 from net_utils import TCPClient, sendTPacketFrame, recvTPacketFrame
 
-# ---------------------------------------------------------------------------
-# Connection settings
-# ---------------------------------------------------------------------------
 PI_HOST = 'localhost'
 PI_PORT = 65432
 
@@ -78,7 +64,7 @@ def _printPacket(pkt):
 
     if ptype == PACKET_TYPE_RESPONSE:
         if cmd == RESP_OK:
-            pass # Keep terminal clean, only print explicit logs
+            pass 
         elif cmd == RESP_STATUS:
             state         = pkt['params'][0]
             _estop_active = (state == STATE_STOPPED)
@@ -95,56 +81,64 @@ def _printPacket(pkt):
         print(f"[robot] Message: {msg}")
 
 # ---------------------------------------------------------------------------
-# Input handling (The Payload Operator)
+# Input handling
 # ---------------------------------------------------------------------------
 
 def _handleInput(line: str, client: TCPClient):
     line = line.strip().lower()
     if not line: return
 
+    parts = line.split()
+    cmd_char = parts[0]
+
     # --- Safety Gate ---
-    if line in ['o', 'c', ',', '.', 'u', 'j', 'i', 'k'] and _estop_active:
+    if cmd_char in ['o', 'c', 'b', 's', 'e'] and _estop_active:
         print("[second_terminal] Refused: E-Stop is active.")
         return
 
     # --- Core Commands ---
-    if line == 'e':
+    if cmd_char == 'e':
         frame = _packFrame(PACKET_TYPE_COMMAND, COMMAND_ESTOP)
         sendTPacketFrame(client.sock, frame)
         print("[second_terminal] Sent: E-STOP")
-    elif line == 'q':
+    elif cmd_char == 'q':
         print("[second_terminal] Quitting.")
         raise KeyboardInterrupt
 
-    # --- 4-DOF Arm Commands ---
-    elif line == 'o': 
+    # --- Gripper Commands (Open/Close) ---
+    elif cmd_char == 'o': 
         sendTPacketFrame(client.sock, _packFrame(PACKET_TYPE_COMMAND, COMMAND_GRIPPER_OPEN))
         print("[arm] Gripper: Open")
-    elif line == 'c': 
+    elif cmd_char == 'c': 
         sendTPacketFrame(client.sock, _packFrame(PACKET_TYPE_COMMAND, COMMAND_GRIPPER_CLOSE))
         print("[arm] Gripper: Close")
     
-    elif line == ',': 
-        sendTPacketFrame(client.sock, _packFrame(PACKET_TYPE_COMMAND, COMMAND_BASE_LEFT))
-        print("[arm] Base: Left")
-    elif line == '.': 
-        sendTPacketFrame(client.sock, _packFrame(PACKET_TYPE_COMMAND, COMMAND_BASE_RIGHT))
-        print("[arm] Base: Right")
+    # --- Absolute Angle Commands (Base, Shoulder, Elbow) ---
+    elif cmd_char in ['b', 's', 'e']:
+        if len(parts) < 2:
+            print(f"[second_terminal] Error: Provide an angle (e.g., '{cmd_char} 90')")
+            return
         
-    elif line == 'u': 
-        sendTPacketFrame(client.sock, _packFrame(PACKET_TYPE_COMMAND, COMMAND_SHOULDER_UP))
-        print("[arm] Shoulder: Up")
-    elif line == 'j': 
-        sendTPacketFrame(client.sock, _packFrame(PACKET_TYPE_COMMAND, COMMAND_SHOULDER_DOWN))
-        print("[arm] Shoulder: Down")
-        
-    elif line == 'i': 
-        sendTPacketFrame(client.sock, _packFrame(PACKET_TYPE_COMMAND, COMMAND_ELBOW_UP))
-        print("[arm] Elbow: Up")
-    elif line == 'k': 
-        sendTPacketFrame(client.sock, _packFrame(PACKET_TYPE_COMMAND, COMMAND_ELBOW_DOWN))
-        print("[arm] Elbow: Down")
-        
+        try:
+            angle = int(parts[1])
+        except ValueError:
+            print("[second_terminal] Error: Angle must be an integer.")
+            return
+
+        # Load the angle into the first parameter slot
+        params = [0] * PARAMS_COUNT
+        params[0] = angle
+
+        if cmd_char == 'b':
+            sendTPacketFrame(client.sock, _packFrame(PACKET_TYPE_COMMAND, COMMAND_SET_BASE, params=params))
+            print(f"[arm] Base set to {angle} deg")
+        elif cmd_char == 's':
+            sendTPacketFrame(client.sock, _packFrame(PACKET_TYPE_COMMAND, COMMAND_SET_SHOULDER, params=params))
+            print(f"[arm] Shoulder set to {angle} deg")
+        elif cmd_char == 'e':
+            sendTPacketFrame(client.sock, _packFrame(PACKET_TYPE_COMMAND, COMMAND_SET_ELBOW, params=params))
+            print(f"[arm] Elbow set to {angle} deg")
+            
     else:
         print(f"[second_terminal] Unknown: '{line}'.")
 
@@ -162,7 +156,8 @@ def run():
 
     print("\n[second_terminal] Connected! --- PAYLOAD OPERATOR ACTIVE ---")
     print("Controls:")
-    print("  [o/c] Gripper | [,/.] Base | [u/j] Shoulder | [i/k] Elbow")
+    print("  [o/c] Gripper | [b <angle>] Base | [s <angle>] Shoulder | [e <angle>] Elbow")
+    print("  Example: 's 120' sets the shoulder to 120 degrees.")
     print("  [e] E-Stop    | [q] Quit\n")
 
     try:

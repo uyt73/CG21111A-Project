@@ -1,9 +1,6 @@
 /*
  * packets.h
  * Studio 16: Robot Integration (4-DOF Arm)
- *
- * TPacket protocol: enums, struct, and framing constants.
- * This file must be kept in sync with the constants in pi_sensor.py and packets.py.
  */
 
 #pragma once
@@ -35,12 +32,9 @@ typedef enum {
     // --- 4-DOF Arm Commands ---
     COMMAND_GRIPPER_OPEN  = 12,
     COMMAND_GRIPPER_CLOSE = 13,
-    COMMAND_BASE_LEFT     = 14,
-    COMMAND_BASE_RIGHT    = 15,
-    COMMAND_SHOULDER_UP   = 16,
-    COMMAND_SHOULDER_DOWN = 17,
-    COMMAND_ELBOW_UP      = 18,
-    COMMAND_ELBOW_DOWN    = 19
+    COMMAND_SET_BASE      = 14,
+    COMMAND_SET_SHOULDER  = 15,
+    COMMAND_SET_ELBOW     = 16
 } TCommandType;
 
 typedef enum {
