@@ -13,6 +13,9 @@ import alex_camera
 from lidar import alex_lidar
 import lidar_example_cli_plot
 
+# --- ADDITION 1: Import the relay module ---
+from second_terminal import relay
+
 # ----------------------------------------------------------------
 # SERIAL PORT SETUP
 # ----------------------------------------------------------------
@@ -33,9 +36,8 @@ def closeSerial():
         _ser.close()
 
 # ----------------------------------------------------------------
-# TPACKET CONSTANTS (Must match Arduino packets.h)
+# TPACKET CONSTANTS (Imported from shared file)
 # ----------------------------------------------------------------
-
 from packets import *
 
 # ----------------------------------------------------------------
@@ -170,9 +172,16 @@ def handleUserInput(line):
 def runCommandInterface():
     print("Controls: [w/s/a/d] Move | [h] Stop | [+/-] Speed | [c/p/l] Sensors | [e] E-Stop | [r] Reset")
     while True:
+        # --- ADDITION 4: Check for packets from the second terminal ---
+        relay.checkSecondTerminal(_ser)
+        
         if _ser.in_waiting >= FRAME_SIZE:
             pkt = receiveFrame()
-            if pkt: printPacket(pkt)
+            if pkt: 
+                printPacket(pkt)
+                # --- ADDITION 3: Forward Arduino response to second terminal ---
+                relay.onPacketReceived(packFrame(pkt['packetType'], pkt['command'], pkt['data'], pkt['params']))
+                
         rlist, _, _ = select.select([sys.stdin], [], [], 0)
         if rlist:
             line = sys.stdin.readline().strip().lower()
@@ -181,10 +190,18 @@ def runCommandInterface():
 
 if __name__ == '__main__':
     openSerial()
+    
+    # --- ADDITION 2: Start the relay server ---
+    relay.start()
+    
     try:
         runCommandInterface()
     except KeyboardInterrupt:
         print("\nExiting.")
     finally:
         if _camera: alex_camera.cameraClose(_camera)
+        
+        # --- ADDITION 5: Shut down the relay safely ---
+        relay.shutdown()
+        
         closeSerial()
