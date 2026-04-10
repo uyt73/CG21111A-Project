@@ -30,7 +30,7 @@ connect_serial()
 print("\n[+] Connected!")
 
 print("\n" + "="*40)
-print("     ARMORED SERVO CALIBRATOR")
+print("     ARMORED SERVO CALIBRATOR (V2)")
 print("="*40)
 print("Controls:")
 print(" [0, 1, 2, 3] : Select active servo")
@@ -60,13 +60,19 @@ def getch():
         termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
     return ch
 
-# Send initial safe angles
-try:
-    for i in range(4):
-        send_command(i, angles[i])
-        time.sleep(0.1)
-except OSError:
-    pass # Ignore initial startup bumps
+# --- THE STAGGERED STARTUP FIX ---
+print("Waking up servos sequentially...")
+for i in range(4):
+    while True:
+        try:
+            send_command(i, angles[i])
+            time.sleep(0.3) # 300ms stagger between wake-ups
+            break
+        except (OSError, serial.SerialException):
+            print(f"\n[!] Brownout waking Servo {i}. Waiting for reboot...", end="")
+            if ser: ser.close()
+            connect_serial()
+            print("\n[+] Reconnected. Retrying...")
 
 print_status()
 
@@ -93,17 +99,17 @@ try:
         elif char == 'a': # -5 degrees
             angles[active_servo] = max(0, angles[active_servo] - 5)
 
-        # Attempt to send the command. If the Arduino browns out, catch the error!
+        # Attempt to send the command. Catch ALL serial errors.
         if char in ['w', 's', 'a', 'd']:
             try:
                 send_command(active_servo, angles[active_servo])
                 print_status()
-            except OSError:
+            except (OSError, serial.SerialException):
                 print("\n\n[!] STALL DETECTED! Servo pulled too much current.")
                 print(f"[!] The absolute limit for {servo_names[active_servo].strip()} is around {angles[active_servo]}°.")
                 print("[!] Waiting for Arduino to reboot...", end="")
                 
-                # Back the angle off by 3 degrees automatically so it doesn't immediately stall again
+                # Back the angle off by 3 degrees automatically
                 if char in ['w', 'd']: 
                     angles[active_servo] = max(0, angles[active_servo] - 3)
                 else: 
@@ -113,8 +119,11 @@ try:
                 connect_serial()
                 print(f"\n[+] Reconnected! Backed off to safe angle: {angles[active_servo]}°")
                 
-                # Re-apply the safe angle
-                send_command(active_servo, angles[active_servo])
+                try:
+                    send_command(active_servo, angles[active_servo])
+                except:
+                    pass # Ignore if it double-faults on recovery
+                    
                 print_status()
 
 except KeyboardInterrupt:
