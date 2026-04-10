@@ -1,17 +1,106 @@
 /*
  * sensor_miniproject_template.ino
- * Studio 16: Robot Integration (Bare-Metal 4-DOF Arm + Heartbeat)
+ * Studio 16: Robot Integration 
+ * Features: 2-Second Heartbeat, Polarity Matrix, Bare-Metal 4-DOF Arm
  */
 
 #include "packets.h"
 #include "serial_driver.h"
+#include <AFMotor.h>
 
 // Speed variable for movement commands
 int robotSpeed = 150; 
 
 // --- Heartbeat Timeout Variables ---
 unsigned long lastMoveTime = 0;
-const unsigned long MOVE_TIMEOUT = 250; // Stop if no command for 250ms
+const unsigned long MOVE_TIMEOUT = 2000; // Drives for 2 seconds per keypress
+
+// =============================================================
+// DC Motor Setup & Software Polarity Matrix
+// =============================================================
+typedef enum dir {
+  DIR_STOP,
+  DIR_GO,
+  DIR_BACK,
+  DIR_CCW,
+  DIR_CW
+} dir_t;
+
+// Motor control pins
+#define FRONT_LEFT   4 // M4
+#define FRONT_RIGHT  1 // M1
+#define BACK_LEFT    3 // M3
+#define BACK_RIGHT   2 // M2
+
+AF_DCMotor motorFL(FRONT_LEFT);
+AF_DCMotor motorFR(FRONT_RIGHT);
+AF_DCMotor motorBL(BACK_LEFT);
+AF_DCMotor motorBR(BACK_RIGHT);
+
+// THE SOFTWARE POLARITY MATRIX
+// If a wheel spins backward when you press 'w', swap FORWARD and BACKWARD here!
+#define FL_FWD BACKWARD
+#define FL_BWD FORWARD
+
+#define FR_FWD BACKWARD  
+#define FR_BWD FORWARD
+
+#define BL_FWD BACKWARD  
+#define BL_BWD FORWARD
+
+#define BR_FWD BACKWARD  
+#define BR_BWD FORWARD
+
+void move(int speed, dir_t direction) {
+  motorFL.setSpeed(speed);
+  motorFR.setSpeed(speed);
+  motorBL.setSpeed(speed);
+  motorBR.setSpeed(speed);
+
+  switch(direction) {
+    case DIR_GO: // All wheels go forward
+      motorFL.run(FL_FWD);
+      motorFR.run(FR_FWD);
+      motorBL.run(BL_FWD);
+      motorBR.run(BR_FWD); 
+      break;
+      
+    case DIR_BACK: // All wheels go backward
+      motorFL.run(FL_BWD);
+      motorFR.run(FR_BWD);
+      motorBL.run(BL_BWD);
+      motorBR.run(BR_BWD); 
+      break;
+      
+    case DIR_CW: // Right Turn: Left wheels forward, Right wheels backward
+      motorFL.run(FL_FWD);
+      motorFR.run(FR_BWD);
+      motorBL.run(BL_FWD);
+      motorBR.run(BR_BWD); 
+      break;
+      
+    case DIR_CCW: // Left Turn: Left wheels backward, Right wheels forward
+      motorFL.run(FL_BWD);
+      motorFR.run(FR_FWD);
+      motorBL.run(BL_BWD);
+      motorBR.run(BR_FWD); 
+      break;
+      
+    case DIR_STOP:
+    default:
+      motorFL.run(RELEASE);
+      motorFR.run(RELEASE);
+      motorBL.run(RELEASE);
+      motorBR.run(RELEASE); 
+  }
+}
+
+void forward(int speed)  { move(speed, DIR_GO); }
+void backward(int speed) { move(speed, DIR_BACK); }
+void ccw(int speed)      { move(speed, DIR_CCW); }
+void cw(int speed)       { move(speed, DIR_CW); }
+void stop()              { move(0, DIR_STOP); }
+
 
 // =============================================================
 // Bare-Metal Servo Driver (Timer 5)
@@ -218,7 +307,7 @@ static void handleCommand(const TPacket *cmd) {
             break;
         }
 
-        // --- Studio 15 Movement Commands ---
+        // --- Movement Commands ---
         case COMMAND_FORWARD:
             forward(robotSpeed);
             lastMoveTime = millis();
