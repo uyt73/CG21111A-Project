@@ -1,6 +1,6 @@
 /*
  * sensor_miniproject_template.ino
- * Studio 15 Merge: Movement & Sensors (With Heartbeat Timeout)
+ * Studio 16: Robot Integration (Bare-Metal 4-DOF Arm + Heartbeat)
  */
 
 #include "packets.h"
@@ -12,6 +12,87 @@ int robotSpeed = 150;
 // --- Heartbeat Timeout Variables ---
 unsigned long lastMoveTime = 0;
 const unsigned long MOVE_TIMEOUT = 250; // Stop if no command for 250ms
+
+// =============================================================
+// Bare-Metal Servo Driver (Timer 5)
+// Base (Pin 49 / PL0), Shoulder (Pin 9 / PH6)
+// Elbow (Pin 10 / PB4), Gripper (Pin 51 / PB2)
+// =============================================================
+
+volatile uint16_t servoPulses[4] = {3000, 3000, 3000, 3000}; // Default 90 deg (1500us * 2 ticks)
+
+int baseAngle     = 90;
+int shoulderAngle = 90;
+int elbowAngle    = 90;
+int gripperAngle  = 90;
+
+void bareMetalServoInit() {
+    // 1. Set pins as outputs
+    DDRL |= (1 << PL0);  // Pin 49
+    DDRH |= (1 << PH6);  // Pin 9
+    DDRB |= (1 << PB4);  // Pin 10
+    DDRB |= (1 << PB2);  // Pin 51
+
+    // 2. Configure Timer 5 for CTC (Clear Timer on Compare Match)
+    cli();
+    TCCR5A = 0;
+    TCCR5B = 0;
+    TCNT5  = 0;
+    
+    TCCR5B |= (1 << WGM52); // Enable CTC Mode
+    TCCR5B |= (1 << CS51);  // Prescaler 8 -> 2MHz timer (0.5us per tick)
+    
+    OCR5A = 1000;           // Start first interrupt quickly
+    TIMSK5 |= (1 << OCIE5A); // Enable interrupt
+    sei();
+}
+
+// Timer 5 Interrupt Service Routine: Fires sequentially to pulse each servo
+ISR(TIMER5_COMPA_vect) {
+    static uint8_t servoIndex = 0;
+    static uint16_t totalTicks = 0;
+
+    // Turn OFF the previous servo pin
+    if (servoIndex == 1)      PORTL &= ~(1 << PL0);
+    else if (servoIndex == 2) PORTH &= ~(1 << PH6);
+    else if (servoIndex == 3) PORTB &= ~(1 << PB4);
+    else if (servoIndex == 4) PORTB &= ~(1 << PB2);
+
+    // Turn ON the current servo pin and set its duration
+    if (servoIndex < 4) {
+        if (servoIndex == 0)      PORTL |= (1 << PL0);
+        else if (servoIndex == 1) PORTH |= (1 << PH6);
+        else if (servoIndex == 2) PORTB |= (1 << PB4);
+        else if (servoIndex == 3) PORTB |= (1 << PB2);
+
+        OCR5A = servoPulses[servoIndex];
+        totalTicks += servoPulses[servoIndex];
+        servoIndex++;
+    } 
+    // All 4 servos pulsed. Pad the rest of the 20ms (40,000 ticks) window
+    else {
+        if (totalTicks < 40000) {
+            OCR5A = 40000 - totalTicks;
+        } else {
+            OCR5A = 1000; // Fallback
+        }
+        servoIndex = 0;
+        totalTicks = 0;
+    }
+}
+
+void setServoAngle(uint8_t index, int angle) {
+    // Enforce mechanical safety limits to prevent stall current
+    if (angle < 10) angle = 10;
+    if (angle > 170) angle = 170;
+    
+    // Standard pulse mapping: 0 deg = 544us, 180 deg = 2400us
+    uint16_t pulseUS = 544 + ((uint32_t)angle * 1856) / 180;
+    
+    cli(); // Protect atomic write to 16-bit array
+    servoPulses[index] = pulseUS * 2; // Multiply by 2 (timer ticks are 0.5us)
+    sei();
+}
 
 // =============================================================
 // Packet helpers
@@ -105,7 +186,7 @@ static void readColorChannels(uint32_t *r, uint32_t *g, uint32_t *b) {
 }
 
 // =============================================================
-// Command handler (Movement commands integrated)
+// Command handler (Movement & Arm Integrated)
 // =============================================================
 
 static void handleCommand(const TPacket *cmd) {
@@ -117,7 +198,7 @@ static void handleCommand(const TPacket *cmd) {
             buttonState  = STATE_STOPPED;
             stateChanged = false;
             sei();
-            stop(); // Ensure motors stop on software E-stop
+            stop(); 
             sendResponse(RESP_OK, 0);
             sendStatus(STATE_STOPPED);
             break;
@@ -140,43 +221,82 @@ static void handleCommand(const TPacket *cmd) {
         // --- Studio 15 Movement Commands ---
         case COMMAND_FORWARD:
             forward(robotSpeed);
-            lastMoveTime = millis(); // Reset Heartbeat
+            lastMoveTime = millis();
             sendResponse(RESP_OK, 0);
             break;
-
         case COMMAND_BACKWARD:
             backward(robotSpeed);
-            lastMoveTime = millis(); // Reset Heartbeat
+            lastMoveTime = millis();
             sendResponse(RESP_OK, 0);
             break;
-
         case COMMAND_TURN_LEFT:
             ccw(robotSpeed);
-            lastMoveTime = millis(); // Reset Heartbeat
+            lastMoveTime = millis();
             sendResponse(RESP_OK, 0);
             break;
-
         case COMMAND_TURN_RIGHT:
             cw(robotSpeed);
-            lastMoveTime = millis(); // Reset Heartbeat
+            lastMoveTime = millis();
             sendResponse(RESP_OK, 0);
             break;
-
         case COMMAND_STOP:
             stop();
             sendResponse(RESP_OK, 0);
             break;
-
         case COMMAND_SPEED_UP:
             robotSpeed += 20;
             if (robotSpeed > 255) robotSpeed = 255;
             sendResponse(RESP_OK, robotSpeed);
             break;
-
         case COMMAND_SPEED_DOWN:
             robotSpeed -= 20;
             if (robotSpeed < 0) robotSpeed = 0;
             sendResponse(RESP_OK, robotSpeed);
+            break;
+
+        // --- 4-DOF Bare-Metal Arm Commands ---
+        case COMMAND_BASE_LEFT:
+            baseAngle -= 5;
+            setServoAngle(0, baseAngle);
+            sendResponse(RESP_OK, 0);
+            break;
+        case COMMAND_BASE_RIGHT:
+            baseAngle += 5;
+            setServoAngle(0, baseAngle);
+            sendResponse(RESP_OK, 0);
+            break;
+            
+        case COMMAND_SHOULDER_UP:
+            shoulderAngle -= 5;
+            setServoAngle(1, shoulderAngle);
+            sendResponse(RESP_OK, 0);
+            break;
+        case COMMAND_SHOULDER_DOWN:
+            shoulderAngle += 5;
+            setServoAngle(1, shoulderAngle);
+            sendResponse(RESP_OK, 0);
+            break;
+            
+        case COMMAND_ELBOW_UP:
+            elbowAngle -= 5;
+            setServoAngle(2, elbowAngle);
+            sendResponse(RESP_OK, 0);
+            break;
+        case COMMAND_ELBOW_DOWN:
+            elbowAngle += 5;
+            setServoAngle(2, elbowAngle);
+            sendResponse(RESP_OK, 0);
+            break;
+            
+        case COMMAND_GRIPPER_OPEN:
+            gripperAngle -= 5;
+            setServoAngle(3, gripperAngle);
+            sendResponse(RESP_OK, 0);
+            break;
+        case COMMAND_GRIPPER_CLOSE:
+            gripperAngle += 5;
+            setServoAngle(3, gripperAngle);
+            sendResponse(RESP_OK, 0);
             break;
     }
 }
@@ -206,7 +326,14 @@ void setup() {
     // 4. Initialize Color Sensor
     colourSensorInit();
 
-    // 5. Ensure all motors start stopped
+    // 5. Initialize Bare-Metal Servos
+    bareMetalServoInit();
+    setServoAngle(0, baseAngle);     // Index 0: Base
+    setServoAngle(1, shoulderAngle); // Index 1: Shoulder
+    setServoAngle(2, elbowAngle);    // Index 2: Elbow
+    setServoAngle(3, gripperAngle);  // Index 3: Gripper
+
+    // 6. Ensure all motors start stopped
     stop();
 
     sei();
@@ -220,7 +347,7 @@ void loop() {
         sei();
         
         if (state == STATE_STOPPED) {
-            stop(); // Cut motor power immediately if button pressed
+            stop(); 
         }
         sendStatus(state);
     }
@@ -231,7 +358,6 @@ void loop() {
     }
 
     // --- The Heartbeat Timeout ---
-    // If the motors haven't received a command in 250ms, stop them automatically.
     if (millis() - lastMoveTime > MOVE_TIMEOUT) {
         stop();
     }

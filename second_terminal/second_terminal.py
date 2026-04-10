@@ -1,79 +1,37 @@
 #!/usr/bin/env python3
 """
 Studio 16: Robot Integration
-second_terminal.py  -  Second operator terminal.
+second_terminal.py  -  Second operator terminal (Arm Control).
 
 This terminal connects to pi_sensor.py over TCP.  It:
   - Displays every TPacket forwarded from the robot (via pi_sensor.py).
+  - Handles the 4-DOF Robotic Arm controls.
   - Sends a software E-Stop command when you type 'e'.
 
-Architecture
-------------
-   [Arduino] <--USB serial--> [pi_sensor.py] <--TCP--> [second_terminal.py]
-                                (TCP server,               (TCP client,
-                                 port 65432)                localhost:65432)
-
 Run pi_sensor.py FIRST (it starts the TCP server), then run this script.
-Both scripts run on the same Raspberry Pi.
-
-IMPORTANT: Update the TPacket constants below to match your pi_sensor.py.
----------------------------------------------------------------------------
-The packet constants (PACKET_TYPE_*, COMMAND_*, RESP_*, STATE_*, sizes) are
-duplicated here from pi_sensor.py.  They MUST stay in sync with your
-pi_sensor.py (and with the Arduino sketch).  Update them whenever you change
-your protocol.
-
-Tip: consider abstracting all TPacket constants into a shared file (e.g.
-packets.py) that both pi_sensor.py and second_terminal.py import, so there
-is only one place to update them.  You do not have to do this now, but it
-avoids hard-to-find bugs caused by constants getting out of sync.
-
-Commands
---------
-  e   Send a software E-Stop to the robot (same as pressing the button).
-  q   Quit.
-
-Usage
------
-    source env/bin/activate
-    python3 second_terminal/second_terminal.py
-
-Press Ctrl+C to exit.
 """
 
 import select
 import struct
 import sys
 import time
+import os
 
-# net_utils is imported with an absolute import because this script is designed
-# to be run directly (python3 second_terminal/second_terminal.py), which adds
-# this file's directory to sys.path automatically.
+# ---------------------------------------------------------------------------
+# Import Shared Packets
+# ---------------------------------------------------------------------------
+# Add parent directory to path so we can import packets.py
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from packets import *
+
+# net_utils is imported with an absolute import
 from net_utils import TCPClient, sendTPacketFrame, recvTPacketFrame
-
 
 # ---------------------------------------------------------------------------
 # Connection settings
 # ---------------------------------------------------------------------------
-# Both scripts run on the same Pi, so the host is 'localhost'.
-# Change PI_HOST to the Pi's IP address if you run this from a different machine.
 PI_HOST = 'localhost'
 PI_PORT = 65432
-
-
-# ---------------------------------------------------------------------------
-# TPacket constants
-# ---------------------------------------------------------------------------
-# IMPORTANT: keep these in sync with your pi_sensor.py and the Arduino sketch.
-
-import os
-import socket
-import threading
-import struct
-
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from packets import *
-
 
 # ---------------------------------------------------------------------------
 # TPacket helpers
@@ -85,9 +43,7 @@ def _computeChecksum(data: bytes) -> int:
         result ^= b
     return result
 
-
 def _packFrame(packetType, command, data=b'', params=None):
-    """Pack a TPacket into a 103-byte framed byte string."""
     if params is None:
         params = [0] * PARAMS_COUNT
     data_padded  = (data + b'\x00' * MAX_STR_LEN)[:MAX_STR_LEN]
@@ -95,9 +51,7 @@ def _packFrame(packetType, command, data=b'', params=None):
                                data_padded, *params)
     return MAGIC + packet_bytes + bytes([_computeChecksum(packet_bytes)])
 
-
 def _unpackFrame(frame: bytes):
-    """Validate checksum and unpack a 103-byte frame.  Returns None if corrupt."""
     if len(frame) != FRAME_SIZE or frame[:2] != MAGIC:
         return None
     raw = frame[2:2 + TPACKET_SIZE]
@@ -111,31 +65,27 @@ def _unpackFrame(frame: bytes):
         'params':     list(fields[3:]),
     }
 
-
 # ---------------------------------------------------------------------------
 # Packet display
 # ---------------------------------------------------------------------------
 
 _estop_active = False
 
-
 def _printPacket(pkt):
-    """Pretty-print a TPacket forwarded from the robot."""
     global _estop_active
-
     ptype = pkt['packetType']
     cmd   = pkt['command']
 
     if ptype == PACKET_TYPE_RESPONSE:
         if cmd == RESP_OK:
-            print("[robot] OK")
+            pass # Keep terminal clean, only print explicit logs
         elif cmd == RESP_STATUS:
             state         = pkt['params'][0]
             _estop_active = (state == STATE_STOPPED)
             print(f"[robot] Status: {'STOPPED' if _estop_active else 'RUNNING'}")
         else:
-            print(f"[robot] Response: unknown command {cmd}")
-        # Print any debug string embedded in the data field.
+            print(f"[robot] Response: command {cmd} finished.")
+            
         debug = pkt['data'].rstrip(b'\x00').decode('ascii', errors='replace')
         if debug:
             print(f"[robot] Debug: {debug}")
@@ -144,32 +94,59 @@ def _printPacket(pkt):
         msg = pkt['data'].rstrip(b'\x00').decode('ascii', errors='replace')
         print(f"[robot] Message: {msg}")
 
-    else:
-        print(f"[robot] Packet: type={ptype}, cmd={cmd}")
-
-
 # ---------------------------------------------------------------------------
-# Input handling
+# Input handling (The Payload Operator)
 # ---------------------------------------------------------------------------
 
 def _handleInput(line: str, client: TCPClient):
-    """Handle one line of keyboard input."""
     line = line.strip().lower()
-    if not line:
+    if not line: return
+
+    # --- Safety Gate ---
+    if line in ['o', 'c', ',', '.', 'u', 'j', 'i', 'k'] and _estop_active:
+        print("[second_terminal] Refused: E-Stop is active.")
         return
 
+    # --- Core Commands ---
     if line == 'e':
         frame = _packFrame(PACKET_TYPE_COMMAND, COMMAND_ESTOP)
         sendTPacketFrame(client.sock, frame)
         print("[second_terminal] Sent: E-STOP")
-
     elif line == 'q':
         print("[second_terminal] Quitting.")
         raise KeyboardInterrupt
 
+    # --- 4-DOF Arm Commands ---
+    elif line == 'o': 
+        sendTPacketFrame(client.sock, _packFrame(PACKET_TYPE_COMMAND, COMMAND_GRIPPER_OPEN))
+        print("[arm] Gripper: Open")
+    elif line == 'c': 
+        sendTPacketFrame(client.sock, _packFrame(PACKET_TYPE_COMMAND, COMMAND_GRIPPER_CLOSE))
+        print("[arm] Gripper: Close")
+    
+    elif line == ',': 
+        sendTPacketFrame(client.sock, _packFrame(PACKET_TYPE_COMMAND, COMMAND_BASE_LEFT))
+        print("[arm] Base: Left")
+    elif line == '.': 
+        sendTPacketFrame(client.sock, _packFrame(PACKET_TYPE_COMMAND, COMMAND_BASE_RIGHT))
+        print("[arm] Base: Right")
+        
+    elif line == 'u': 
+        sendTPacketFrame(client.sock, _packFrame(PACKET_TYPE_COMMAND, COMMAND_SHOULDER_UP))
+        print("[arm] Shoulder: Up")
+    elif line == 'j': 
+        sendTPacketFrame(client.sock, _packFrame(PACKET_TYPE_COMMAND, COMMAND_SHOULDER_DOWN))
+        print("[arm] Shoulder: Down")
+        
+    elif line == 'i': 
+        sendTPacketFrame(client.sock, _packFrame(PACKET_TYPE_COMMAND, COMMAND_ELBOW_UP))
+        print("[arm] Elbow: Up")
+    elif line == 'k': 
+        sendTPacketFrame(client.sock, _packFrame(PACKET_TYPE_COMMAND, COMMAND_ELBOW_DOWN))
+        print("[arm] Elbow: Down")
+        
     else:
-        print(f"[second_terminal] Unknown: '{line}'.  Valid: e (E-Stop)  q (quit)")
-
+        print(f"[second_terminal] Unknown: '{line}'.")
 
 # ---------------------------------------------------------------------------
 # Main loop
@@ -180,28 +157,25 @@ def run():
     print(f"[second_terminal] Connecting to pi_sensor.py at {PI_HOST}:{PI_PORT}...")
 
     if not client.connect(timeout=60.0):
-        print("[second_terminal] Could not connect.")
-        print("  Make sure pi_sensor.py is running and waiting for a"
-              " second terminal connection.")
+        print("[second_terminal] Could not connect. Ensure pi_sensor.py is running.")
         sys.exit(1)
 
-    print("[second_terminal] Connected!")
-    print("[second_terminal] Commands:  e = E-Stop   q = quit")
-    print("[second_terminal] Incoming robot packets will be printed below.\n")
+    print("\n[second_terminal] Connected! --- PAYLOAD OPERATOR ACTIVE ---")
+    print("Controls:")
+    print("  [o/c] Gripper | [,/.] Base | [u/j] Shoulder | [i/k] Elbow")
+    print("  [e] E-Stop    | [q] Quit\n")
 
     try:
         while True:
-            # Check for forwarded TPackets from pi_sensor.py (non-blocking).
             if client.hasData():
                 frame = recvTPacketFrame(client.sock)
                 if frame is None:
-                    print("[second_terminal] Connection to pi_sensor.py closed.")
+                    print("[second_terminal] Connection closed.")
                     break
                 pkt = _unpackFrame(frame)
                 if pkt:
                     _printPacket(pkt)
 
-            # Check for keyboard input (non-blocking via select).
             rlist, _, _ = select.select([sys.stdin], [], [], 0)
             if rlist:
                 line = sys.stdin.readline()
@@ -213,7 +187,6 @@ def run():
         print("\n[second_terminal] Exiting.")
     finally:
         client.close()
-
 
 if __name__ == '__main__':
     run()

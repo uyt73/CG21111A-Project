@@ -1,9 +1,9 @@
 /*
  * packets.h
- * Studio 13: Sensor Mini-Project
+ * Studio 16: Robot Integration (4-DOF Arm)
  *
  * TPacket protocol: enums, struct, and framing constants.
- * This file must be kept in sync with the constants in pi_sensor.py.
+ * This file must be kept in sync with the constants in pi_sensor.py and packets.py.
  */
 
 #pragma once
@@ -30,13 +30,23 @@ typedef enum {
     COMMAND_SPEED_UP    = 6,
     COMMAND_SPEED_DOWN  = 7,
     COMMAND_STOP        = 8,
-    COMMAND_COLOR       = 10 // Activity 2: Color Sensor Request
+    COMMAND_COLOR       = 10,
+
+    // --- 4-DOF Arm Commands ---
+    COMMAND_GRIPPER_OPEN  = 12,
+    COMMAND_GRIPPER_CLOSE = 13,
+    COMMAND_BASE_LEFT     = 14,
+    COMMAND_BASE_RIGHT    = 15,
+    COMMAND_SHOULDER_UP   = 16,
+    COMMAND_SHOULDER_DOWN = 17,
+    COMMAND_ELBOW_UP      = 18,
+    COMMAND_ELBOW_DOWN    = 19
 } TCommandType;
 
 typedef enum {
     RESP_OK     = 0,
     RESP_STATUS = 1,
-    RESP_COLOR  = 11       // Activity 2: Color Sensor Data
+    RESP_COLOR  = 11
 } TResponseType;
 
 typedef enum {
