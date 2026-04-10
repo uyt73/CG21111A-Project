@@ -1,15 +1,15 @@
 /*
  * sensor_miniproject_template.ino
  * Studio 16: Robot Integration 
- * Features: 500ms Heartbeat, Polarity Matrix, Turn Boost, Bare-Metal 4-DOF Arm, Max Speed Hardcoded
+ * Features: 500ms Heartbeat, Polarity Matrix, Hardcoded Speeds (100 Fwd / 250 Turn), Bare-Metal Arm
  */
 
 #include "packets.h"
 #include "serial_driver.h"
 #include <AFMotor.h>
 
-// --- HARDCODED MAX SPEED ---
-const int robotSpeed = 255; 
+// Speed variable (kept to satisfy the Pi protocol, but ignored for actual movement)
+int robotSpeed = 100; 
 
 // --- Heartbeat Timeout Variables ---
 unsigned long lastMoveTime = 0;
@@ -95,20 +95,11 @@ void move(int speed, dir_t direction) {
   }
 }
 
+// --- NEATENED HARDCODED MOVEMENT FUNCTIONS ---
 void forward(int speed)  { move(100, DIR_GO); }
 void backward(int speed) { move(100, DIR_BACK); }
-
-// Turn Boost (caps safely at 255)
-void ccw(int speed)      { 
-    int turnSpeed = speed + 60;
-    if (turnSpeed > 255) turnSpeed = 255;
-    move(250, DIR_CCW); 
-}
-void cw(int speed)       { 
-    int turnSpeed = speed + 60;
-    if (turnSpeed > 255) turnSpeed = 255;
-    move(250, DIR_CW); 
-}
+void ccw(int speed)      { move(250, DIR_CCW); }
+void cw(int speed)       { move(250, DIR_CW); }
 void stop()              { move(0, DIR_STOP); }
 
 
@@ -324,7 +315,7 @@ static void handleCommand(const TPacket *cmd) {
             break;
         }
 
-        // --- Movement Commands (Hardcoded to Max Speed) ---
+        // --- Movement Commands (Speeds are handled inside the functions now) ---
         case COMMAND_FORWARD:
             forward(robotSpeed);
             lastMoveTime = millis();
@@ -350,7 +341,7 @@ static void handleCommand(const TPacket *cmd) {
             sendResponse(RESP_OK, 0);
             break;
             
-        // Ignore math for speed changes, just return the constant 255 to the Pi
+        // Return dummy variables so the Pi's code doesn't crash on speed change commands
         case COMMAND_SPEED_UP:
             sendResponse(RESP_OK, robotSpeed);
             break;
