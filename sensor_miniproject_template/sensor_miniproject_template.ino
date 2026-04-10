@@ -73,17 +73,17 @@ void move(int speed, dir_t direction) {
       break;
       
     case DIR_CW: // Right Turn: Left wheels forward, Right wheels backward
-      motorFL.run(FL_FWD);
+      motorFL.run(FL_BWD);
       motorFR.run(FR_BWD);
       motorBL.run(BL_FWD);
-      motorBR.run(BR_BWD); 
+      motorBR.run(BR_FWD); 
       break;
       
     case DIR_CCW: // Left Turn: Left wheels backward, Right wheels forward
-      motorFL.run(FL_BWD);
+      motorFL.run(FL_FWD);
       motorFR.run(FR_FWD);
       motorBL.run(BL_BWD);
-      motorBR.run(BR_FWD); 
+      motorBR.run(BR_BWD); 
       break;
       
     case DIR_STOP:
