@@ -125,42 +125,37 @@ def printPacket(pkt):
 # SENSOR HANDLERS
 # ----------------------------------------------------------------
 
-# CAMERA ISOLATION: Commented out to prevent hardware crash
-# _camera = alex_camera.cameraOpen() 
-_camera = None
-
+# CAMERA UNBLOCKED
+_camera = alex_camera.cameraOpen() 
 _frames_remaining = 10
 
 def handleColorCommand():
     if isEstopActive(): print("Refused: E-Stop Active."); return
     sendCommand(COMMAND_COLOR)
 
-# CAMERA ISOLATION: Function disabled
-# def handleCameraCommand():
-#     global _frames_remaining
-#     if isEstopActive(): print("Refused: E-Stop Active."); return
-#     if _frames_remaining <= 0: print("Refused: Frame limit reached."); return
-#     print("Capturing...")
-#     frame = alex_camera.captureGreyscaleFrame(_camera)
-#     alex_camera.renderGreyscaleFrame(frame)
-#     _frames_remaining -= 1
+# CAMERA COMMAND UNBLOCKED
+def handleCameraCommand():
+    global _frames_remaining
+    if isEstopActive(): print("Refused: E-Stop Active."); return
+    if _frames_remaining <= 0: print("Refused: Frame limit reached."); return
+    print("Capturing...")
+    frame = alex_camera.captureGreyscaleFrame(_camera)
+    alex_camera.renderGreyscaleFrame(frame)
+    _frames_remaining -= 1
 
 # ----------------------------------------------------------------
 # MAIN INTERFACE
 # ----------------------------------------------------------------
 def handleUserInput(line):
-    # Safety gate: Removed 'p' and 'l' from the active list
-    if line in ['w','s','a','d','h','+','-','c'] and isEstopActive():
+    # Added 'p' back to the safety gate
+    if line in ['w','s','a','d','h','+','-','c','p'] and isEstopActive():
         print("Refused: E-Stop is active. Press 'r' to reset.")
         return
 
     if line == 'r': sendCommand(COMMAND_CLEAR_ESTOP)
     elif line == 'e': sendCommand(COMMAND_ESTOP)
     elif line == 'c': handleColorCommand()
-    
-    # CAMERA ISOLATION: Keybind disabled
-    # elif line == 'p': handleCameraCommand()
-    
+    elif line == 'p': handleCameraCommand() # KEYBIND UNBLOCKED
     elif line == 'w': sendCommand(COMMAND_FORWARD)
     elif line == 's': sendCommand(COMMAND_BACKWARD)
     elif line == 'a': sendCommand(COMMAND_TURN_LEFT)
@@ -171,8 +166,8 @@ def handleUserInput(line):
     else: print(f"Unknown command: '{line}'")
 
 def runCommandInterface():
-    # Updated text to reflect disabled camera and LIDAR
-    print("Controls: [w/s/a/d] Move | [h] Stop | [+/-] Speed | [c] Color Sensor | [e] E-Stop | [r] Reset")
+    # Terminal text updated to show 'p' is active again
+    print("Controls: [w/s/a/d] Move | [h] Stop | [+/-] Speed | [c/p] Sensors | [e] E-Stop | [r] Reset")
     while True:
         # --- ADDITION 4: Check for packets from the second terminal ---
         relay.checkSecondTerminal(_ser)
@@ -201,8 +196,8 @@ if __name__ == '__main__':
     except KeyboardInterrupt:
         print("\nExiting.")
     finally:
-        # CAMERA ISOLATION: Cleanup disabled
-        # if _camera: alex_camera.cameraClose(_camera)
+        # CAMERA CLEANUP UNBLOCKED
+        if _camera: alex_camera.cameraClose(_camera)
         
         # --- ADDITION 5: Shut down the relay safely ---
         relay.shutdown()
