@@ -29,38 +29,42 @@ void move(int speed, int direction)
   motorBR.setSpeed(speed);
 
   switch(direction)
-    {
-      case BACK:
+  {
+      case GO: // All wheels go forward
         motorFL.run(FORWARD);
         motorFR.run(FORWARD);
-        motorBL.run(BACKWARD);
-        motorBR.run(BACKWARD); 
-      break;
-      case GO:
-        motorFL.run(BACKWARD);
-        motorFR.run(BACKWARD);
         motorBL.run(FORWARD);
         motorBR.run(FORWARD); 
       break;
-      case CW:
+
+      case BACK: // All wheels go backward
         motorFL.run(BACKWARD);
-        motorFR.run(FORWARD);
+        motorFR.run(BACKWARD);
+        motorBL.run(BACKWARD);
+        motorBR.run(BACKWARD); 
+      break;
+
+      case CW: // Turn Right: Left wheels forward, Right wheels backward
+        motorFL.run(FORWARD);
+        motorFR.run(BACKWARD);
         motorBL.run(FORWARD);
         motorBR.run(BACKWARD); 
       break;
-      case CCW:
-        motorFL.run(FORWARD);
-        motorFR.run(BACKWARD);
+
+      case CCW: // Turn Left: Left wheels backward, Right wheels forward
+        motorFL.run(BACKWARD);
+        motorFR.run(FORWARD);
         motorBL.run(BACKWARD);
         motorBR.run(FORWARD); 
       break;
+
       case STOP:
       default:
         motorFL.run(RELEASE);
         motorFR.run(RELEASE);
         motorBL.run(RELEASE);
         motorBR.run(RELEASE); 
-    }
+  }
 }
 
 void forward(int speed)
