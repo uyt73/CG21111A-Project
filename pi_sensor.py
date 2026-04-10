@@ -125,7 +125,7 @@ def printPacket(pkt):
 # SENSOR HANDLERS
 # ----------------------------------------------------------------
 _camera = alex_camera.cameraOpen() 
-_frames_remaining = 5
+_frames_remaining = 10
 
 def handleColorCommand():
     if isEstopActive(): print("Refused: E-Stop Active."); return
