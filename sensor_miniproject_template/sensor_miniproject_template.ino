@@ -352,11 +352,14 @@ static void handleCommand(const TPacket *cmd) {
         // --- 4-DOF Bare-Metal Arm Commands ---
         case COMMAND_GRIPPER_OPEN:
             gripperAngle -= 5;
+            if (gripperAngle < 0) gripperAngle = 0; // Prevent negative wind-up
             setServoAngle(3, gripperAngle);
             sendResponse(RESP_OK, 0);
             break;
+            
         case COMMAND_GRIPPER_CLOSE:
             gripperAngle += 5;
+            if (gripperAngle > 30) gripperAngle = 30; // Prevent positive wind-up
             setServoAngle(3, gripperAngle);
             sendResponse(RESP_OK, 0);
             break;
