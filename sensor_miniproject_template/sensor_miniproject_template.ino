@@ -1,7 +1,7 @@
 /*
  * sensor_miniproject_template.ino
  * Studio 16: Robot Integration 
- * Features: 2-Second Heartbeat, Polarity Matrix, Bare-Metal 4-DOF Arm
+ * Features: 2-Second Heartbeat, Polarity Matrix, Bare-Metal 4-DOF Arm (Custom Gripper Limits)
  */
 
 #include "packets.h"
@@ -48,8 +48,8 @@ AF_DCMotor motorBR(BACK_RIGHT);
 #define BL_FWD BACKWARD  
 #define BL_BWD FORWARD
 
-#define BR_FWD FORWARD  
-#define BR_BWD BACKWARD
+#define BR_FWD BACKWARD  
+#define BR_BWD FORWARD
 
 void move(int speed, dir_t direction) {
   motorFL.setSpeed(speed);
@@ -73,17 +73,17 @@ void move(int speed, dir_t direction) {
       break;
       
     case DIR_CW: // Right Turn: Left wheels forward, Right wheels backward
-      motorFL.run(FL_BWD);
+      motorFL.run(FL_FWD);
       motorFR.run(FR_BWD);
       motorBL.run(BL_FWD);
-      motorBR.run(BR_FWD); 
+      motorBR.run(BR_BWD); 
       break;
       
     case DIR_CCW: // Left Turn: Left wheels backward, Right wheels forward
-      motorFL.run(FL_FWD);
+      motorFL.run(FL_BWD);
       motorFR.run(FR_FWD);
       motorBL.run(BL_BWD);
-      motorBR.run(BR_BWD); 
+      motorBR.run(BR_FWD); 
       break;
       
     case DIR_STOP:
@@ -113,7 +113,7 @@ volatile uint16_t servoPulses[4] = {3000, 3000, 3000, 3000}; // Default 90 deg (
 int baseAngle     = 90;
 int shoulderAngle = 90;
 int elbowAngle    = 90;
-int gripperAngle  = 90;
+int gripperAngle  = 15; // Set starting angle within the safe 0-30 range
 
 void bareMetalServoInit() {
     // 1. Set pins as outputs
@@ -171,9 +171,16 @@ ISR(TIMER5_COMPA_vect) {
 }
 
 void setServoAngle(uint8_t index, int angle) {
-    // Enforce mechanical safety limits to prevent stall current
-    if (angle < 10) angle = 10;
-    if (angle > 170) angle = 170;
+    // --- Custom Mechanical Safety Limits ---
+    if (index == 3) {
+        // Gripper: Restricted to 0 -> 30 degrees
+        if (angle < 0) angle = 0;
+        if (angle > 30) angle = 30;
+    } else {
+        // Base, Shoulder, Elbow: Standard 10 -> 170 degrees
+        if (angle < 10) angle = 10;
+        if (angle > 170) angle = 170;
+    }
     
     // Standard pulse mapping: 0 deg = 544us, 180 deg = 2400us
     uint16_t pulseUS = 544 + ((uint32_t)angle * 1856) / 180;
@@ -403,7 +410,7 @@ void setup() {
     setServoAngle(0, baseAngle);     // Index 0: Base
     setServoAngle(1, shoulderAngle); // Index 1: Shoulder
     setServoAngle(2, elbowAngle);    // Index 2: Elbow
-    setServoAngle(3, gripperAngle);  // Index 3: Gripper
+    setServoAngle(3, gripperAngle);  // Index 3: Gripper (Initializes to 15)
 
     // 6. Ensure all motors start stopped
     stop();
