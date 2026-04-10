@@ -95,8 +95,8 @@ void move(int speed, dir_t direction) {
   }
 }
 
-void forward(int speed)  { move(speed, DIR_GO); }
-void backward(int speed) { move(speed, DIR_BACK); }
+void forward(int speed)  { move(100, DIR_GO); }
+void backward(int speed) { move(100, DIR_BACK); }
 
 // Turn Boost (caps safely at 255)
 void ccw(int speed)      { 
