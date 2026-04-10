@@ -1,7 +1,7 @@
 /*
  * sensor_miniproject_template.ino
  * Studio 16: Robot Integration 
- * Features: 2-Second Heartbeat, Polarity Matrix, Bare-Metal 4-DOF Arm (Custom Gripper Limits)
+ * Features: 500ms Heartbeat, Polarity Matrix, Turn Boost, Bare-Metal 4-DOF Arm (Custom Gripper Limits)
  */
 
 #include "packets.h"
@@ -13,7 +13,7 @@ int robotSpeed = 150;
 
 // --- Heartbeat Timeout Variables ---
 unsigned long lastMoveTime = 0;
-const unsigned long MOVE_TIMEOUT = 2000; // Drives for 2 seconds per keypress
+const unsigned long MOVE_TIMEOUT = 500; // Drives for 0.5 seconds per keypress
 
 // =============================================================
 // DC Motor Setup & Software Polarity Matrix
@@ -97,8 +97,18 @@ void move(int speed, dir_t direction) {
 
 void forward(int speed)  { move(speed, DIR_GO); }
 void backward(int speed) { move(speed, DIR_BACK); }
-void ccw(int speed)      { move(speed, DIR_CCW); }
-void cw(int speed)       { move(speed, DIR_CW); }
+
+// Add a "Turn Boost" of +60 to overcome sideways friction
+void ccw(int speed)      { 
+    int turnSpeed = speed + 60;
+    if (turnSpeed > 255) turnSpeed = 255;
+    move(turnSpeed, DIR_CCW); 
+}
+void cw(int speed)       { 
+    int turnSpeed = speed + 60;
+    if (turnSpeed > 255) turnSpeed = 255;
+    move(turnSpeed, DIR_CW); 
+}
 void stop()              { move(0, DIR_STOP); }
 
 
