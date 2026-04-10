@@ -66,25 +66,13 @@ PI_PORT = 65432
 # ---------------------------------------------------------------------------
 # IMPORTANT: keep these in sync with your pi_sensor.py and the Arduino sketch.
 
-PACKET_TYPE_COMMAND  = 0
-PACKET_TYPE_RESPONSE = 1
-PACKET_TYPE_MESSAGE  = 2
+import os
+import socket
+import threading
+import struct
 
-COMMAND_ESTOP = 0
-
-RESP_OK     = 0
-RESP_STATUS = 1
-
-STATE_RUNNING = 0
-STATE_STOPPED = 1
-
-MAX_STR_LEN  = 32
-PARAMS_COUNT = 16
-TPACKET_SIZE = 1 + 1 + 2 + MAX_STR_LEN + (PARAMS_COUNT * 4)   # = 100
-TPACKET_FMT  = f'<BB2x{MAX_STR_LEN}s{PARAMS_COUNT}I'
-
-MAGIC      = b'\xDE\xAD'
-FRAME_SIZE = len(MAGIC) + TPACKET_SIZE + 1   # = 103
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from packets import *
 
 
 # ---------------------------------------------------------------------------

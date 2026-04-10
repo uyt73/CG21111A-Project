@@ -35,35 +35,8 @@ def closeSerial():
 # ----------------------------------------------------------------
 # TPACKET CONSTANTS (Must match Arduino packets.h)
 # ----------------------------------------------------------------
-PACKET_TYPE_COMMAND  = 0
-PACKET_TYPE_RESPONSE = 1
-PACKET_TYPE_MESSAGE  = 2
 
-COMMAND_ESTOP       = 0
-COMMAND_CLEAR_ESTOP = 1
-COMMAND_FORWARD     = 2
-COMMAND_BACKWARD    = 3
-COMMAND_TURN_LEFT   = 4
-COMMAND_TURN_RIGHT  = 5
-COMMAND_SPEED_UP    = 6
-COMMAND_SPEED_DOWN  = 7
-COMMAND_STOP        = 8
-COMMAND_COLOR       = 10
-
-RESP_OK     = 0
-RESP_STATUS = 1
-RESP_COLOR  = 11
-
-STATE_RUNNING = 0
-STATE_STOPPED = 1
-
-MAX_STR_LEN  = 32
-PARAMS_COUNT = 16
-TPACKET_SIZE = 1 + 1 + 2 + MAX_STR_LEN + (PARAMS_COUNT * 4) 
-TPACKET_FMT  = f'<BB2x{MAX_STR_LEN}s{PARAMS_COUNT}I'
-
-MAGIC = b'\xDE\xAD'
-FRAME_SIZE = len(MAGIC) + TPACKET_SIZE + 1 
+from packets import *
 
 # ----------------------------------------------------------------
 # FRAMING & COMMUNICATION
