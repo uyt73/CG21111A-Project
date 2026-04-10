@@ -1,7 +1,7 @@
 #include <AFMotor.h>
+
 // Direction values
-typedef enum dir
-{
+typedef enum dir {
   STOP,
   GO,
   BACK,
@@ -9,86 +9,80 @@ typedef enum dir
   CW
 } dir;
 
-// Motor control
-#define FRONT_LEFT   4 // M4 on the driver shield
-#define FRONT_RIGHT  1 // M1 on the driver shield
-#define BACK_LEFT    3 // M3 on the driver shield
-#define BACK_RIGHT   2 // M2 on the driver shield
+// Motor control pins
+#define FRONT_LEFT   4 // M4
+#define FRONT_RIGHT  1 // M1
+#define BACK_LEFT    3 // M3
+#define BACK_RIGHT   2 // M2
 
 AF_DCMotor motorFL(FRONT_LEFT);
 AF_DCMotor motorFR(FRONT_RIGHT);
 AF_DCMotor motorBL(BACK_LEFT);
 AF_DCMotor motorBR(BACK_RIGHT);
 
-void move(int speed, int direction)
-{
-  
+// =======================================================================
+// THE SOFTWARE POLARITY MATRIX
+// If a wheel spins backward when you press 'w', swap FORWARD and BACKWARD here!
+// =======================================================================
+#define FL_FWD BACKWARD
+#define FL_BWD FORWARD
+
+#define FR_FWD BACKWARD  
+#define FR_BWD FORWARD
+
+#define BL_FWD BACKWARD  
+#define BL_BWD FORWARD
+
+#define BR_FWD BACKWARD  
+#define BR_BWD FORWARD
+// =======================================================================
+
+void move(int speed, int direction) {
   motorFL.setSpeed(speed);
   motorFR.setSpeed(speed);
   motorBL.setSpeed(speed);
   motorBR.setSpeed(speed);
 
-  switch(direction)
-  {
-      case GO: // All wheels go forward
-        motorFL.run(FORWARD);
-        motorFR.run(FORWARD);
-        motorBL.run(FORWARD);
-        motorBR.run(FORWARD); 
+  switch(direction) {
+    case GO: // All wheels go forward
+      motorFL.run(FL_FWD);
+      motorFR.run(FR_FWD);
+      motorBL.run(BL_FWD);
+      motorBR.run(BR_FWD); 
       break;
-
-      case BACK: // All wheels go backward
-        motorFL.run(BACKWARD);
-        motorFR.run(BACKWARD);
-        motorBL.run(BACKWARD);
-        motorBR.run(BACKWARD); 
+      
+    case BACK: // All wheels go backward
+      motorFL.run(FL_BWD);
+      motorFR.run(FR_BWD);
+      motorBL.run(BL_BWD);
+      motorBR.run(BR_BWD); 
       break;
-
-      case CW: // Turn Right: Left wheels forward, Right wheels backward
-        motorFL.run(FORWARD);
-        motorFR.run(BACKWARD);
-        motorBL.run(FORWARD);
-        motorBR.run(BACKWARD); 
+      
+    case CW: // Right Turn: Left wheels forward, Right wheels backward
+      motorFL.run(FL_FWD);
+      motorFR.run(FR_BWD);
+      motorBL.run(BL_FWD);
+      motorBR.run(BR_BWD); 
       break;
-
-      case CCW: // Turn Left: Left wheels backward, Right wheels forward
-        motorFL.run(BACKWARD);
-        motorFR.run(FORWARD);
-        motorBL.run(BACKWARD);
-        motorBR.run(FORWARD); 
+      
+    case CCW: // Left Turn: Left wheels backward, Right wheels forward
+      motorFL.run(FL_BWD);
+      motorFR.run(FR_FWD);
+      motorBL.run(BL_BWD);
+      motorBR.run(BR_FWD); 
       break;
-
-      case STOP:
-      default:
-        motorFL.run(RELEASE);
-        motorFR.run(RELEASE);
-        motorBL.run(RELEASE);
-        motorBR.run(RELEASE); 
+      
+    case STOP:
+    default:
+      motorFL.run(RELEASE);
+      motorFR.run(RELEASE);
+      motorBL.run(RELEASE);
+      motorBR.run(RELEASE); 
   }
 }
 
-void forward(int speed)
-{
-  move(speed, GO);
-}
-
-void backward(int speed)
-{
-  move(speed, BACK);
-}
-
-void ccw(int speed)
-{
-  move(speed, CCW);
-}
-
-void cw(int speed)
-{
-  move(speed, CW);
-}
-
-void stop()
-{
-  move(0, STOP);
-}
-
+void forward(int speed)  { move(speed, GO); }
+void backward(int speed) { move(speed, BACK); }
+void ccw(int speed)      { move(speed, CCW); }
+void cw(int speed)       { move(speed, CW); }
+void stop()              { move(0, STOP); }
