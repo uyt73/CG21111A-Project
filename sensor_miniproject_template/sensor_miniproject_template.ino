@@ -62,7 +62,7 @@ void move(int speed, dir_t direction) {
       motorFL.run(FL_FWD);
       motorFR.run(FR_FWD);
       motorBL.run(BL_FWD);
-      motorBR.run(BR_FWD); 
+      motorBR.run(BR_BWD); 
       break;
       
     case DIR_BACK: // All wheels go backward
