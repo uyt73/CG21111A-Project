@@ -1,7 +1,7 @@
 /*
  * sensor_miniproject_template.ino
  * Studio 16: Robot Integration 
- * Features: 500ms Heartbeat, Polarity Matrix, Hardcoded Speeds (100 Fwd / 250 Turn), Bare-Metal Arm
+ * Features: 500ms Heartbeat, Hardcoded Speeds, 3-Zone Power Breadboard Pins, Staggered Boot
  */
 
 #include "packets.h"
@@ -38,7 +38,6 @@ AF_DCMotor motorBL(BACK_LEFT);
 AF_DCMotor motorBR(BACK_RIGHT);
 
 // THE SOFTWARE POLARITY MATRIX
-// If a wheel spins backward when you press 'w', swap FORWARD and BACKWARD here!
 #define FL_FWD BACKWARD
 #define FL_BWD FORWARD
 
@@ -104,9 +103,9 @@ void stop()              { move(0, DIR_STOP); }
 
 
 // =============================================================
-// Bare-Metal Servo Driver (Timer 5)
-// Base (Pin 49 / PL0), Shoulder (Pin 9 / PH6)
-// Elbow (Pin 10 / PB4), Gripper (Pin 51 / PB2)
+// Bare-Metal Servo Driver (Timer 5) - BREADBOARD EDITION
+// Base (Pin 45 / PL4), Shoulder (Pin 47 / PL2)
+// Elbow (Pin 49 / PL0), Gripper (Pin 51 / PB2)
 // =============================================================
 
 volatile uint16_t servoPulses[4] = {3000, 3000, 3000, 3000}; // Default 90 deg (1500us * 2 ticks)
@@ -117,11 +116,11 @@ int elbowAngle    = 90;
 int gripperAngle  = 15; // Set starting angle within the safe 0-30 range
 
 void bareMetalServoInit() {
-    // 1. Set pins as outputs
-    DDRL |= (1 << PL0);  // Pin 49
-    DDRH |= (1 << PH6);  // Pin 9
-    DDRB |= (1 << PB4);  // Pin 10
-    DDRB |= (1 << PB2);  // Pin 51
+    // 1. Set NEW pins as outputs
+    DDRL |= (1 << PL4);  // Pin 45 (Base)
+    DDRL |= (1 << PL2);  // Pin 47 (Shoulder)
+    DDRL |= (1 << PL0);  // Pin 49 (Elbow)
+    DDRB |= (1 << PB2);  // Pin 51 (Gripper)
 
     // 2. Configure Timer 5 for CTC (Clear Timer on Compare Match)
     cli();
@@ -143,17 +142,17 @@ ISR(TIMER5_COMPA_vect) {
     static uint16_t totalTicks = 0;
 
     // Turn OFF the previous servo pin
-    if (servoIndex == 1)      PORTL &= ~(1 << PL0);
-    else if (servoIndex == 2) PORTH &= ~(1 << PH6);
-    else if (servoIndex == 3) PORTB &= ~(1 << PB4);
-    else if (servoIndex == 4) PORTB &= ~(1 << PB2);
+    if (servoIndex == 1)      PORTL &= ~(1 << PL4); // Base OFF
+    else if (servoIndex == 2) PORTL &= ~(1 << PL2); // Shoulder OFF
+    else if (servoIndex == 3) PORTL &= ~(1 << PL0); // Elbow OFF
+    else if (servoIndex == 4) PORTB &= ~(1 << PB2); // Gripper OFF
 
     // Turn ON the current servo pin and set its duration
     if (servoIndex < 4) {
-        if (servoIndex == 0)      PORTL |= (1 << PL0);
-        else if (servoIndex == 1) PORTH |= (1 << PH6);
-        else if (servoIndex == 2) PORTB |= (1 << PB4);
-        else if (servoIndex == 3) PORTB |= (1 << PB2);
+        if (servoIndex == 0)      PORTL |= (1 << PL4); // Base ON
+        else if (servoIndex == 1) PORTL |= (1 << PL2); // Shoulder ON
+        else if (servoIndex == 2) PORTL |= (1 << PL0); // Elbow ON
+        else if (servoIndex == 3) PORTB |= (1 << PB2); // Gripper ON
 
         OCR5A = servoPulses[servoIndex];
         totalTicks += servoPulses[servoIndex];
@@ -315,7 +314,7 @@ static void handleCommand(const TPacket *cmd) {
             break;
         }
 
-        // --- Movement Commands (Speeds are handled inside the functions now) ---
+        // --- Movement Commands ---
         case COMMAND_FORWARD:
             forward(robotSpeed);
             lastMoveTime = millis();
@@ -349,7 +348,7 @@ static void handleCommand(const TPacket *cmd) {
             sendResponse(RESP_OK, robotSpeed);
             break;
 
-        // --- 4-DOF Bare-Metal Arm Commands --- COMMENT OUT IF BROWNOUT
+        // --- 4-DOF Bare-Metal Arm Commands --- 
         case COMMAND_GRIPPER_OPEN:
             gripperAngle -= 5;
             if (gripperAngle < 0) gripperAngle = 0; // Prevent negative wind-up
@@ -365,17 +364,17 @@ static void handleCommand(const TPacket *cmd) {
             break;
             
         case COMMAND_SET_BASE:
-            baseAngle = cmd->params[0]; // Grab user angle from packet
+            baseAngle = cmd->params[0]; 
             setServoAngle(0, baseAngle);
             sendResponse(RESP_OK, 0);
             break;
         case COMMAND_SET_SHOULDER:
-            shoulderAngle = cmd->params[0]; // Grab user angle from packet
+            shoulderAngle = cmd->params[0]; 
             setServoAngle(1, shoulderAngle);
             sendResponse(RESP_OK, 0);
             break;
         case COMMAND_SET_ELBOW:
-            elbowAngle = cmd->params[0]; // Grab user angle from packet
+            elbowAngle = cmd->params[0]; 
             setServoAngle(2, elbowAngle);
             sendResponse(RESP_OK, 0);
             break;
@@ -407,12 +406,15 @@ void setup() {
     // 4. Initialize Color Sensor
     colourSensorInit();
 
-    // 5. Initialize Bare-Metal Servos COMMENT OUT IF BROWNOUT
+    // 5. Initialize Bare-Metal Servos with STAGGERED BOOT
     bareMetalServoInit();
     setServoAngle(0, baseAngle);     // Index 0: Base
+    delay(300);
     setServoAngle(1, shoulderAngle); // Index 1: Shoulder
+    delay(300);
     setServoAngle(2, elbowAngle);    // Index 2: Elbow
-    setServoAngle(3, gripperAngle);  // Index 3: Gripper (Initializes to 15)
+    delay(300);
+    setServoAngle(3, gripperAngle);  // Index 3: Gripper
 
     // 6. Ensure all motors start stopped
     stop();

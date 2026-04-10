@@ -1,14 +1,16 @@
 /*
  * servo_calibrate.ino
- * Stripped-down Bare-Metal Servo calibrator.
+ * Stripped-down Bare-Metal Servo calibrator (BREADBOARD EDITION).
+ * Pins: Base(45), Shoulder(47), Elbow(49), Gripper(51)
  */
 
 volatile uint16_t servoPulses[4] = {3000, 3000, 3000, 1054}; // Defaults: 90, 90, 90, 15
 
 void bareMetalServoInit() {
-    DDRL |= (1 << PL0);  // Pin 49 (Base)
-    DDRH |= (1 << PH6);  // Pin 9  (Shoulder)
-    DDRB |= (1 << PB4);  // Pin 10 (Elbow)
+    // 1. Set NEW pins as outputs
+    DDRL |= (1 << PL4);  // Pin 45 (Base)
+    DDRL |= (1 << PL2);  // Pin 47 (Shoulder)
+    DDRL |= (1 << PL0);  // Pin 49 (Elbow)
     DDRB |= (1 << PB2);  // Pin 51 (Gripper)
 
     cli();
@@ -24,16 +26,18 @@ ISR(TIMER5_COMPA_vect) {
     static uint8_t servoIndex = 0;
     static uint16_t totalTicks = 0;
 
-    if (servoIndex == 1)      PORTL &= ~(1 << PL0);
-    else if (servoIndex == 2) PORTH &= ~(1 << PH6);
-    else if (servoIndex == 3) PORTB &= ~(1 << PB4);
-    else if (servoIndex == 4) PORTB &= ~(1 << PB2);
+    // Turn OFF the previous servo pin
+    if (servoIndex == 1)      PORTL &= ~(1 << PL4); // Base OFF
+    else if (servoIndex == 2) PORTL &= ~(1 << PL2); // Shoulder OFF
+    else if (servoIndex == 3) PORTL &= ~(1 << PL0); // Elbow OFF
+    else if (servoIndex == 4) PORTB &= ~(1 << PB2); // Gripper OFF
 
+    // Turn ON the current servo pin and set its duration
     if (servoIndex < 4) {
-        if (servoIndex == 0)      PORTL |= (1 << PL0);
-        else if (servoIndex == 1) PORTH |= (1 << PH6);
-        else if (servoIndex == 2) PORTB |= (1 << PB4);
-        else if (servoIndex == 3) PORTB |= (1 << PB2);
+        if (servoIndex == 0)      PORTL |= (1 << PL4); // Base ON
+        else if (servoIndex == 1) PORTL |= (1 << PL2); // Shoulder ON
+        else if (servoIndex == 2) PORTL |= (1 << PL0); // Elbow ON
+        else if (servoIndex == 3) PORTB |= (1 << PB2); // Gripper ON
 
         OCR5A = servoPulses[servoIndex];
         totalTicks += servoPulses[servoIndex];
