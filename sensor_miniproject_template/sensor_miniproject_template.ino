@@ -102,12 +102,12 @@ void backward(int speed) { move(100, DIR_BACK); }
 void ccw(int speed)      { 
     int turnSpeed = speed + 60;
     if (turnSpeed > 255) turnSpeed = 255;
-    move(turnSpeed, DIR_CCW); 
+    move(250, DIR_CCW); 
 }
 void cw(int speed)       { 
     int turnSpeed = speed + 60;
     if (turnSpeed > 255) turnSpeed = 255;
-    move(turnSpeed, DIR_CW); 
+    move(250, DIR_CW); 
 }
 void stop()              { move(0, DIR_STOP); }
 
