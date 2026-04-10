@@ -1,15 +1,15 @@
 /*
  * sensor_miniproject_template.ino
  * Studio 16: Robot Integration 
- * Features: 500ms Heartbeat, Polarity Matrix, Turn Boost, Bare-Metal 4-DOF Arm (Custom Gripper Limits)
+ * Features: 500ms Heartbeat, Polarity Matrix, Turn Boost, Bare-Metal 4-DOF Arm, Max Speed Hardcoded
  */
 
 #include "packets.h"
 #include "serial_driver.h"
 #include <AFMotor.h>
 
-// Speed variable for movement commands
-int robotSpeed = 150; 
+// --- HARDCODED MAX SPEED ---
+const int robotSpeed = 255; 
 
 // --- Heartbeat Timeout Variables ---
 unsigned long lastMoveTime = 0;
@@ -98,7 +98,7 @@ void move(int speed, dir_t direction) {
 void forward(int speed)  { move(speed, DIR_GO); }
 void backward(int speed) { move(speed, DIR_BACK); }
 
-// Add a "Turn Boost" of +60 to overcome sideways friction
+// Turn Boost (caps safely at 255)
 void ccw(int speed)      { 
     int turnSpeed = speed + 60;
     if (turnSpeed > 255) turnSpeed = 255;
@@ -324,7 +324,7 @@ static void handleCommand(const TPacket *cmd) {
             break;
         }
 
-        // --- Movement Commands ---
+        // --- Movement Commands (Hardcoded to Max Speed) ---
         case COMMAND_FORWARD:
             forward(robotSpeed);
             lastMoveTime = millis();
@@ -349,14 +349,12 @@ static void handleCommand(const TPacket *cmd) {
             stop();
             sendResponse(RESP_OK, 0);
             break;
+            
+        // Ignore math for speed changes, just return the constant 255 to the Pi
         case COMMAND_SPEED_UP:
-            robotSpeed += 20;
-            if (robotSpeed > 255) robotSpeed = 255;
             sendResponse(RESP_OK, robotSpeed);
             break;
         case COMMAND_SPEED_DOWN:
-            robotSpeed -= 20;
-            if (robotSpeed < 0) robotSpeed = 0;
             sendResponse(RESP_OK, robotSpeed);
             break;
 
