@@ -92,7 +92,7 @@ def _handleInput(line: str, client: TCPClient):
     cmd_char = parts[0]
 
     # --- Safety Gate ---
-    if cmd_char in ['o', 'c', 'b', 's', 'e'] and _estop_active:
+    if cmd_char in ['o', 'c', 'b', 's', 'l'] and _estop_active:
         print("[second_terminal] Refused: E-Stop is active.")
         return
 
@@ -114,7 +114,7 @@ def _handleInput(line: str, client: TCPClient):
         print("[arm] Gripper: Close")
     
     # --- Absolute Angle Commands (Base, Shoulder, Elbow) ---
-    elif cmd_char in ['b', 's', 'e']:
+    elif cmd_char in ['b', 's', 'l']:
         if len(parts) < 2:
             print(f"[second_terminal] Error: Provide an angle (e.g., '{cmd_char} 90')")
             return
@@ -135,7 +135,7 @@ def _handleInput(line: str, client: TCPClient):
         elif cmd_char == 's':
             sendTPacketFrame(client.sock, _packFrame(PACKET_TYPE_COMMAND, COMMAND_SET_SHOULDER, params=params))
             print(f"[arm] Shoulder set to {angle} deg")
-        elif cmd_char == 'e':
+        elif cmd_char == 'l':
             sendTPacketFrame(client.sock, _packFrame(PACKET_TYPE_COMMAND, COMMAND_SET_ELBOW, params=params))
             print(f"[arm] Elbow set to {angle} deg")
             
@@ -156,8 +156,8 @@ def run():
 
     print("\n[second_terminal] Connected! --- PAYLOAD OPERATOR ACTIVE ---")
     print("Controls:")
-    print("  [o/c] Gripper | [b <angle>] Base | [s <angle>] Shoulder | [e <angle>] Elbow")
-    print("  Example: 's 120' sets the shoulder to 120 degrees.")
+    print("  [o/c] Gripper | [b <angle>] Base | [s <angle>] Shoulder | [l <angle>] Elbow")
+    print("  Example: 'l 120' sets the elbow to 120 degrees.")
     print("  [e] E-Stop    | [q] Quit\n")
 
     try:

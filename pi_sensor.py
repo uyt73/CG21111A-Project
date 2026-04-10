@@ -10,8 +10,6 @@ import time
 import sys
 import select
 import alex_camera
-from lidar import alex_lidar
-import lidar_example_cli_plot
 
 # --- ADDITION 1: Import the relay module ---
 from second_terminal import relay
@@ -142,9 +140,9 @@ def handleCameraCommand():
     alex_camera.renderGreyscaleFrame(frame)
     _frames_remaining -= 1
 
-def handleLidarCommand():
-    if isEstopActive(): print("Refused: E-Stop Active."); return
-    lidar_example_cli_plot.plot_single_scan()
+# def handleLidarCommand():
+#     if isEstopActive(): print("Refused: E-Stop Active."); return
+#     lidar_example_cli_plot.plot_single_scan()
 
 # ----------------------------------------------------------------
 # MAIN INTERFACE
@@ -159,7 +157,7 @@ def handleUserInput(line):
     elif line == 'e': sendCommand(COMMAND_ESTOP)
     elif line == 'c': handleColorCommand()
     elif line == 'p': handleCameraCommand()
-    elif line == 'l': handleLidarCommand()
+    # elif line == 'l': handleLidarCommand()
     elif line == 'w': sendCommand(COMMAND_FORWARD)
     elif line == 's': sendCommand(COMMAND_BACKWARD)
     elif line == 'a': sendCommand(COMMAND_TURN_LEFT)
