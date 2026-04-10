@@ -24,17 +24,17 @@ AF_DCMotor motorBR(BACK_RIGHT);
 // THE SOFTWARE POLARITY MATRIX
 // If a wheel spins backward when you press 'w', swap FORWARD and BACKWARD here!
 // =======================================================================
-#define FL_FWD BACKWARD
-#define FL_BWD FORWARD
+#define FL_FWD FORWARD
+#define FL_BWD BACKWARD 
 
-#define FR_FWD BACKWARD  
-#define FR_BWD FORWARD
+#define FR_FWD FORWARD  
+#define FR_BWD BACKWARD 
 
 #define BL_FWD BACKWARD  
 #define BL_BWD FORWARD
 
-#define BR_FWD BACKWARD  
-#define BR_BWD FORWARD
+#define BR_FWD FORWARD 
+#define BR_BWD BACKWARD 
 // =======================================================================
 
 void move(int speed, int direction) {
