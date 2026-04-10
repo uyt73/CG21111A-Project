@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 CG2111A Alex Robot - Integrated Pi Interface
-Combines Studio 13 (Sensors) and Studio 15 (Movement)
+Features: Auto-Reconnect Brownout Protection
 """
 
 import struct
@@ -11,7 +11,6 @@ import sys
 import select
 import alex_camera
 
-# --- ADDITION 1: Import the relay module ---
 from second_terminal import relay
 
 # ----------------------------------------------------------------
@@ -31,7 +30,29 @@ def openSerial():
 def closeSerial():
     global _ser
     if _ser and _ser.is_open:
-        _ser.close()
+        try:
+            _ser.close()
+        except:
+            pass
+
+# --- THE BROWNOUT BODYGUARD ---
+def reconnectSerial():
+    global _ser
+    print("\n[!] HARDWARE DISCONNECT DETECTED (Brownout/Dead Battery).")
+    print("[!] Attempting to reconnect to Arduino", end="")
+    closeSerial()
+    
+    while True:
+        try:
+            time.sleep(1)
+            _ser = serial.Serial(PORT, BAUDRATE, timeout=5)
+            print(f"\n[+] Arduino found at {PORT}! Waiting 2s for setup()...")
+            time.sleep(2)
+            print("[+] Connection restored. Ready to drive.\n")
+            break
+        except Exception:
+            # Print a dot every second while waiting for Arduino to come back
+            print(".", end="", flush=True)
 
 # ----------------------------------------------------------------
 # TPACKET CONSTANTS (Imported from shared file)
@@ -66,30 +87,37 @@ def unpackTPacket(raw):
     }
 
 def receiveFrame():
-    MAGIC_HI, MAGIC_LO = MAGIC[0], MAGIC[1]
-    discarded = 0 
-    while True:
-        b = _ser.read(1)
-        if not b: return None 
-        discarded += 1
-        if discarded > 200: return None # Escape hatch for garbage data
-        if b[0] != MAGIC_HI: continue
-        b = _ser.read(1)
-        if not b or b[0] != MAGIC_LO: continue
+    try:
+        MAGIC_HI, MAGIC_LO = MAGIC[0], MAGIC[1]
+        discarded = 0 
+        while True:
+            b = _ser.read(1)
+            if not b: return None 
+            discarded += 1
+            if discarded > 200: return None 
+            if b[0] != MAGIC_HI: continue
+            b = _ser.read(1)
+            if not b or b[0] != MAGIC_LO: continue
 
-        raw = b''
-        while len(raw) < TPACKET_SIZE:
-            chunk = _ser.read(TPACKET_SIZE - len(raw))
-            if not chunk: return None
-            raw += chunk
+            raw = b''
+            while len(raw) < TPACKET_SIZE:
+                chunk = _ser.read(TPACKET_SIZE - len(raw))
+                if not chunk: return None
+                raw += chunk
 
-        cs_byte = _ser.read(1)
-        if not cs_byte or cs_byte[0] != computeChecksum(raw): continue
-        return unpackTPacket(raw)
+            cs_byte = _ser.read(1)
+            if not cs_byte or cs_byte[0] != computeChecksum(raw): continue
+            return unpackTPacket(raw)
+    except OSError:
+        # If it crashes mid-read, return None and let the main loop trigger reconnect
+        return None
 
 def sendCommand(commandType, data=b'', params=None):
     frame = packFrame(PACKET_TYPE_COMMAND, commandType, data=data, params=params)
-    _ser.write(frame)
+    try:
+        _ser.write(frame)
+    except OSError:
+        pass # Let the main loop catch the disconnect on the next pass
 
 # ----------------------------------------------------------------
 # E-STOP & STATE MANAGEMENT
@@ -105,7 +133,7 @@ def printPacket(pkt):
 
     if ptype == PACKET_TYPE_RESPONSE:
         if cmd == RESP_OK:
-            if pkt['params'][0] > 0: # Speed updates return current speed
+            if pkt['params'][0] > 0: 
                 print(f"Response: OK (Current Speed: {pkt['params'][0]})")
             else:
                 print("Response: OK")
@@ -124,8 +152,6 @@ def printPacket(pkt):
 # ----------------------------------------------------------------
 # SENSOR HANDLERS
 # ----------------------------------------------------------------
-
-# CAMERA UNBLOCKED
 _camera = alex_camera.cameraOpen() 
 _frames_remaining = 10
 
@@ -133,7 +159,6 @@ def handleColorCommand():
     if isEstopActive(): print("Refused: E-Stop Active."); return
     sendCommand(COMMAND_COLOR)
 
-# CAMERA COMMAND UNBLOCKED
 def handleCameraCommand():
     global _frames_remaining
     if isEstopActive(): print("Refused: E-Stop Active."); return
@@ -147,7 +172,6 @@ def handleCameraCommand():
 # MAIN INTERFACE
 # ----------------------------------------------------------------
 def handleUserInput(line):
-    # Added 'p' back to the safety gate
     if line in ['w','s','a','d','h','+','-','c','p'] and isEstopActive():
         print("Refused: E-Stop is active. Press 'r' to reset.")
         return
@@ -155,7 +179,7 @@ def handleUserInput(line):
     if line == 'r': sendCommand(COMMAND_CLEAR_ESTOP)
     elif line == 'e': sendCommand(COMMAND_ESTOP)
     elif line == 'c': handleColorCommand()
-    elif line == 'p': handleCameraCommand() # KEYBIND UNBLOCKED
+    elif line == 'p': handleCameraCommand()
     elif line == 'w': sendCommand(COMMAND_FORWARD)
     elif line == 's': sendCommand(COMMAND_BACKWARD)
     elif line == 'a': sendCommand(COMMAND_TURN_LEFT)
@@ -166,29 +190,31 @@ def handleUserInput(line):
     else: print(f"Unknown command: '{line}'")
 
 def runCommandInterface():
-    # Terminal text updated to show 'p' is active again
     print("Controls: [w/s/a/d] Move | [h] Stop | [+/-] Speed | [c/p] Sensors | [e] E-Stop | [r] Reset")
     while True:
-        # --- ADDITION 4: Check for packets from the second terminal ---
-        relay.checkSecondTerminal(_ser)
-        
-        if _ser.in_waiting >= FRAME_SIZE:
-            pkt = receiveFrame()
-            if pkt: 
-                printPacket(pkt)
-                # --- ADDITION 3: Forward Arduino response to second terminal ---
-                relay.onPacketReceived(packFrame(pkt['packetType'], pkt['command'], pkt['data'], pkt['params']))
+        try:
+            relay.checkSecondTerminal(_ser)
+            
+            # The try block catches the Errno 5 exactly when in_waiting is called
+            if _ser.in_waiting >= FRAME_SIZE:
+                pkt = receiveFrame()
+                if pkt: 
+                    printPacket(pkt)
+                    relay.onPacketReceived(packFrame(pkt['packetType'], pkt['command'], pkt['data'], pkt['params']))
+                    
+            rlist, _, _ = select.select([sys.stdin], [], [], 0)
+            if rlist:
+                line = sys.stdin.readline().strip().lower()
+                if line: handleUserInput(line)
                 
-        rlist, _, _ = select.select([sys.stdin], [], [], 0)
-        if rlist:
-            line = sys.stdin.readline().strip().lower()
-            if line: handleUserInput(line)
+        except OSError:
+            # THIS PREVENTS THE SCRIPT FROM CRASHING!
+            reconnectSerial()
+            
         time.sleep(0.05)
 
 if __name__ == '__main__':
     openSerial()
-    
-    # --- ADDITION 2: Start the relay server ---
     relay.start()
     
     try:
@@ -196,10 +222,6 @@ if __name__ == '__main__':
     except KeyboardInterrupt:
         print("\nExiting.")
     finally:
-        # CAMERA CLEANUP UNBLOCKED
         if _camera: alex_camera.cameraClose(_camera)
-        
-        # --- ADDITION 5: Shut down the relay safely ---
         relay.shutdown()
-        
         closeSerial()

@@ -349,7 +349,7 @@ static void handleCommand(const TPacket *cmd) {
             sendResponse(RESP_OK, robotSpeed);
             break;
 
-        // --- 4-DOF Bare-Metal Arm Commands ---
+        // --- 4-DOF Bare-Metal Arm Commands --- COMMENT OUT IF BROWNOUT
         case COMMAND_GRIPPER_OPEN:
             gripperAngle -= 5;
             if (gripperAngle < 0) gripperAngle = 0; // Prevent negative wind-up
@@ -407,7 +407,7 @@ void setup() {
     // 4. Initialize Color Sensor
     colourSensorInit();
 
-    // 5. Initialize Bare-Metal Servos
+    // 5. Initialize Bare-Metal Servos COMMENT OUT IF BROWNOUT
     bareMetalServoInit();
     setServoAngle(0, baseAngle);     // Index 0: Base
     setServoAngle(1, shoulderAngle); // Index 1: Shoulder
