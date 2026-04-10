@@ -1,13 +1,17 @@
 /*
  * sensor_miniproject_template.ino
- * Studio 15 Merge: Movement & Sensors
+ * Studio 15 Merge: Movement & Sensors (With Heartbeat Timeout)
  */
 
 #include "packets.h"
 #include "serial_driver.h"
 
-// Speed variable for movement commands [cite: 299]
+// Speed variable for movement commands
 int robotSpeed = 150; 
+
+// --- Heartbeat Timeout Variables ---
+unsigned long lastMoveTime = 0;
+const unsigned long MOVE_TIMEOUT = 250; // Stop if no command for 250ms
 
 // =============================================================
 // Packet helpers
@@ -27,7 +31,7 @@ static void sendStatus(TState state) {
 }
 
 // =============================================================
-// E-Stop state machine (Pin 21 / PD0 / INT0) [cite: 258]
+// E-Stop state machine (Pin 21 / PD0 / INT0)
 // =============================================================
 
 volatile TState buttonState = STATE_RUNNING;
@@ -56,7 +60,7 @@ ISR(INT0_vect) {
 }
 
 // =============================================================
-// Color sensor (TCS3200) - Pins 22-26 [cite: 264]
+// Color sensor (TCS3200) - Pins 22-26
 // =============================================================
 
 #define S0_BIT PA0 
@@ -101,7 +105,7 @@ static void readColorChannels(uint32_t *r, uint32_t *g, uint32_t *b) {
 }
 
 // =============================================================
-// Command handler (Movement commands integrated) [cite: 279]
+// Command handler (Movement commands integrated)
 // =============================================================
 
 static void handleCommand(const TPacket *cmd) {
@@ -113,7 +117,7 @@ static void handleCommand(const TPacket *cmd) {
             buttonState  = STATE_STOPPED;
             stateChanged = false;
             sei();
-            stop(); // Ensure motors stop on software E-stop [cite: 306]
+            stop(); // Ensure motors stop on software E-stop
             sendResponse(RESP_OK, 0);
             sendStatus(STATE_STOPPED);
             break;
@@ -133,24 +137,28 @@ static void handleCommand(const TPacket *cmd) {
             break;
         }
 
-        // --- Studio 15 Movement Commands --- [cite: 217, 305]
+        // --- Studio 15 Movement Commands ---
         case COMMAND_FORWARD:
             forward(robotSpeed);
+            lastMoveTime = millis(); // Reset Heartbeat
             sendResponse(RESP_OK, 0);
             break;
 
         case COMMAND_BACKWARD:
             backward(robotSpeed);
+            lastMoveTime = millis(); // Reset Heartbeat
             sendResponse(RESP_OK, 0);
             break;
 
         case COMMAND_TURN_LEFT:
             ccw(robotSpeed);
+            lastMoveTime = millis(); // Reset Heartbeat
             sendResponse(RESP_OK, 0);
             break;
 
         case COMMAND_TURN_RIGHT:
             cw(robotSpeed);
+            lastMoveTime = millis(); // Reset Heartbeat
             sendResponse(RESP_OK, 0);
             break;
 
@@ -184,18 +192,18 @@ void setup() {
     Serial.begin(9600);
 #endif
 
-    // 1. Configure E-Stop Pin (Pin 21 / PD0) [cite: 289]
+    // 1. Configure E-Stop Pin (Pin 21 / PD0)
     DDRD &= ~(1 << PD0); 
     PORTD |= (1 << PD0); 
     
-    // 2. Configure INT0 to fire on ANY logic change [cite: 291]
+    // 2. Configure INT0 to fire on ANY logic change
     EICRA |= (1 << ISC00);
     EICRA &= ~(1 << ISC01);
     
-    // 3. Enable INT0 in the mask register [cite: 292]
+    // 3. Enable INT0 in the mask register
     EIMSK |= (1 << INT0);
 
-    // 4. Initialize Color Sensor [cite: 293]
+    // 4. Initialize Color Sensor
     colourSensorInit();
 
     // 5. Ensure all motors start stopped
@@ -212,7 +220,7 @@ void loop() {
         sei();
         
         if (state == STATE_STOPPED) {
-            stop(); // Cut motor power immediately if button pressed [cite: 306]
+            stop(); // Cut motor power immediately if button pressed
         }
         sendStatus(state);
     }
@@ -220,5 +228,11 @@ void loop() {
     TPacket incoming;
     if (receiveFrame(&incoming)) {
         handleCommand(&incoming);
+    }
+
+    // --- The Heartbeat Timeout ---
+    // If the motors haven't received a command in 250ms, stop them automatically.
+    if (millis() - lastMoveTime > MOVE_TIMEOUT) {
+        stop();
     }
 }
