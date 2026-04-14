@@ -9,7 +9,7 @@
 #include <AFMotor.h>
 
 // Speed variable (kept to satisfy the Pi protocol, but ignored for actual movement)
-int robotSpeed = 100; 
+int robotSpeed = 150; 
 
 // --- Heartbeat Timeout Variables ---
 unsigned long lastMoveTime = 0;
