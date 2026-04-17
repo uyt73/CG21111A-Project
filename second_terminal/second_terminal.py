@@ -92,7 +92,7 @@ def _handleInput(line: str, client: TCPClient):
     cmd_char = parts[0]
 
     # --- Safety Gate ---
-    if cmd_char in ['o', 'c', 'b', 's', 'l'] and _estop_active:
+    if cmd_char in ['g', 'b', 's', 'l'] and _estop_active:
         print("[second_terminal] Refused: E-Stop is active.")
         return
 
@@ -105,16 +105,8 @@ def _handleInput(line: str, client: TCPClient):
         print("[second_terminal] Quitting.")
         raise KeyboardInterrupt
 
-    # --- Gripper Commands (Open/Close) ---
-    elif cmd_char == 'o': 
-        sendTPacketFrame(client.sock, _packFrame(PACKET_TYPE_COMMAND, COMMAND_GRIPPER_OPEN))
-        print("[arm] Gripper: Open")
-    elif cmd_char == 'c': 
-        sendTPacketFrame(client.sock, _packFrame(PACKET_TYPE_COMMAND, COMMAND_GRIPPER_CLOSE))
-        print("[arm] Gripper: Close")
-    
-    # --- Absolute Angle Commands (Base, Shoulder, Elbow) ---
-    elif cmd_char in ['b', 's', 'l']:
+    # --- Absolute Angle Commands (Gripper, Base, Shoulder, Elbow) ---
+    elif cmd_char in ['g', 'b', 's', 'l']:
         if len(parts) < 2:
             print(f"[second_terminal] Error: Provide an angle (e.g., '{cmd_char} 90')")
             return
@@ -129,7 +121,10 @@ def _handleInput(line: str, client: TCPClient):
         params = [0] * PARAMS_COUNT
         params[0] = angle
 
-        if cmd_char == 'b':
+        if cmd_char == 'g':
+            sendTPacketFrame(client.sock, _packFrame(PACKET_TYPE_COMMAND, COMMAND_SET_GRIPPER, params=params))
+            print(f"[arm] Gripper set to {angle} deg")
+        elif cmd_char == 'b':
             sendTPacketFrame(client.sock, _packFrame(PACKET_TYPE_COMMAND, COMMAND_SET_BASE, params=params))
             print(f"[arm] Base set to {angle} deg")
         elif cmd_char == 's':
@@ -156,8 +151,8 @@ def run():
 
     print("\n[second_terminal] Connected! --- PAYLOAD OPERATOR ACTIVE ---")
     print("Controls:")
-    print("  [o/c] Gripper | [b <angle>] Base | [s <angle>] Shoulder | [l <angle>] Elbow")
-    print("  Example: 'l 120' sets the elbow to 120 degrees.")
+    print("  [g <angle>] Gripper | [b <angle>] Base | [s <angle>] Shoulder | [l <angle>] Elbow")
+    print("  Example: 'g 15' sets the gripper to 15 degrees.")
     print("  [e] E-Stop    | [q] Quit\n")
 
     try:
