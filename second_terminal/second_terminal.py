@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Studio 16: Robot Integration
-second_terminal.py  -  Second operator terminal (Arm Control).
+second_terminal.py  -  Real-Time Arm Control Pad (Calibrator Style)
 """
 
 import select
@@ -9,6 +9,8 @@ import struct
 import sys
 import time
 import os
+import tty
+import termios
 
 # --- Import Shared Packets ---
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -20,9 +22,16 @@ PI_HOST = 'localhost'
 PI_PORT = 65432
 
 # ---------------------------------------------------------------------------
+# State Memory (Matches Arduino Defaults)
+# ---------------------------------------------------------------------------
+angles = {'b': 90, 's': 0, 'l': 90, 'g': 5}
+active_joint = 'g'
+joint_names = {'b': 'Base', 's': 'Shoulder', 'l': 'Elbow', 'g': 'Gripper'}
+_estop_active = False
+
+# ---------------------------------------------------------------------------
 # TPacket helpers
 # ---------------------------------------------------------------------------
-
 def _computeChecksum(data: bytes) -> int:
     result = 0
     for b in data:
@@ -52,25 +61,27 @@ def _unpackFrame(frame: bytes):
     }
 
 # ---------------------------------------------------------------------------
-# Packet display
+# UI and Output Handling
 # ---------------------------------------------------------------------------
-
-_estop_active = False
+def _printStatus():
+    """Prints the live updating status bar at the bottom of the terminal."""
+    status = f"\rActive: {joint_names[active_joint]:<8} | Angle: [{angles[active_joint]:03d}°] | E-Stop: {'ON ' if _estop_active else 'OFF'} "
+    sys.stdout.write(status)
+    sys.stdout.flush()
 
 def _printPacket(pkt):
     global _estop_active
     ptype = pkt['packetType']
     cmd   = pkt['command']
 
+    # Clear the current status line before printing a new log message
+    sys.stdout.write("\r" + " "*60 + "\r") 
+
     if ptype == PACKET_TYPE_RESPONSE:
-        if cmd == RESP_OK:
-            pass 
-        elif cmd == RESP_STATUS:
+        if cmd == RESP_STATUS:
             state         = pkt['params'][0]
             _estop_active = (state == STATE_STOPPED)
             print(f"[robot] Status: {'STOPPED' if _estop_active else 'RUNNING'}")
-        else:
-            print(f"[robot] Response: command {cmd} finished.")
             
         debug = pkt['data'].rstrip(b'\x00').decode('ascii', errors='replace')
         if debug:
@@ -79,68 +90,71 @@ def _printPacket(pkt):
     elif ptype == PACKET_TYPE_MESSAGE:
         msg = pkt['data'].rstrip(b'\x00').decode('ascii', errors='replace')
         print(f"[robot] Message: {msg}")
+        
+    _printStatus() # Redraw the live status bar
 
 # ---------------------------------------------------------------------------
-# Input handling
+# Instant Input Handling
 # ---------------------------------------------------------------------------
+def _handleChar(ch: str, client: TCPClient):
+    global active_joint
 
-def _handleInput(line: str, client: TCPClient):
-    line = line.strip().lower()
-    if not line: return
-
-    parts = line.split()
-    cmd_char = parts[0]
-
-    # --- Safety Gate ---
-    if cmd_char in ['g', 'b', 's', 'l'] and _estop_active:
-        print("[second_terminal] Refused: E-Stop is active.")
+    # 1. Select Active Joint
+    if ch in ['b', 's', 'l', 'g']:
+        active_joint = ch
+        _printStatus()
         return
 
-    # --- Core Commands ---
-    if cmd_char == 'e':
+    # 2. Safety Gate
+    if ch in ['w', 'a', 's', 'd'] and _estop_active:
+        return # Ignore movement if E-Stop is active
+
+    # 3. Core Commands
+    if ch == 'e':
         frame = _packFrame(PACKET_TYPE_COMMAND, COMMAND_ESTOP)
         sendTPacketFrame(client.sock, frame)
-        print("[second_terminal] Sent: E-STOP")
-    elif cmd_char == 'q':
-        print("[second_terminal] Quitting.")
-        raise KeyboardInterrupt
+        return
 
-    # --- Absolute Angle Commands (Gripper, Base, Shoulder, Elbow) ---
-    elif cmd_char in ['g', 'b', 's', 'l']:
-        if len(parts) < 2:
-            print(f"[second_terminal] Error: Provide an angle (e.g., '{cmd_char} 90')")
-            return
+    # 4. Angle Manipulation (w/s/a/d)
+    changed = False
+    if ch == 'w':   # +1 degree
+        angles[active_joint] += 1
+        changed = True
+    elif ch == 's': # -1 degree
+        angles[active_joint] -= 1
+        changed = True
+    elif ch == 'd': # +5 degrees
+        angles[active_joint] += 5
+        changed = True
+    elif ch == 'a': # -5 degrees
+        angles[active_joint] -= 5
+        changed = True
+
+    if changed:
+        # Enforce physical hardware limits
+        if active_joint == 'g':
+            angles[active_joint] = max(0, min(30, angles[active_joint]))
+        else:
+            angles[active_joint] = max(0, min(180, angles[active_joint]))
+
+        # Map character to the specific packet command
+        cmd_map = {
+            'b': COMMAND_SET_BASE, 
+            's': COMMAND_SET_SHOULDER, 
+            'l': COMMAND_SET_ELBOW, 
+            'g': COMMAND_SET_GRIPPER
+        }
         
-        try:
-            angle = int(parts[1])
-        except ValueError:
-            print("[second_terminal] Error: Angle must be an integer.")
-            return
-
-        # Load the angle into the first parameter slot
+        # Send the new angle
         params = [0] * PARAMS_COUNT
-        params[0] = angle
-
-        if cmd_char == 'g':
-            sendTPacketFrame(client.sock, _packFrame(PACKET_TYPE_COMMAND, COMMAND_SET_GRIPPER, params=params))
-            print(f"[arm] Gripper set to {angle} deg")
-        elif cmd_char == 'b':
-            sendTPacketFrame(client.sock, _packFrame(PACKET_TYPE_COMMAND, COMMAND_SET_BASE, params=params))
-            print(f"[arm] Base set to {angle} deg")
-        elif cmd_char == 's':
-            sendTPacketFrame(client.sock, _packFrame(PACKET_TYPE_COMMAND, COMMAND_SET_SHOULDER, params=params))
-            print(f"[arm] Shoulder set to {angle} deg")
-        elif cmd_char == 'l':
-            sendTPacketFrame(client.sock, _packFrame(PACKET_TYPE_COMMAND, COMMAND_SET_ELBOW, params=params))
-            print(f"[arm] Elbow set to {angle} deg")
-            
-    else:
-        print(f"[second_terminal] Unknown: '{line}'.")
+        params[0] = angles[active_joint]
+        sendTPacketFrame(client.sock, _packFrame(PACKET_TYPE_COMMAND, cmd_map[active_joint], params=params))
+        
+        _printStatus()
 
 # ---------------------------------------------------------------------------
 # Main loop
 # ---------------------------------------------------------------------------
-
 def run():
     client = TCPClient(host=PI_HOST, port=PI_PORT)
     print(f"[second_terminal] Connecting to pi_sensor.py at {PI_HOST}:{PI_PORT}...")
@@ -149,33 +163,53 @@ def run():
         print("[second_terminal] Could not connect. Ensure pi_sensor.py is running.")
         sys.exit(1)
 
-    print("\n[second_terminal] Connected! --- PAYLOAD OPERATOR ACTIVE ---")
+    print("\n" + "="*40)
+    print("     PAYLOAD OPERATOR ACTIVE")
+    print("="*40)
     print("Controls:")
-    print("  [g <angle>] Gripper | [b <angle>] Base | [s <angle>] Shoulder | [l <angle>] Elbow")
-    print("  Example: 'g 15' sets the gripper to 15 degrees.")
-    print("  [e] E-Stop    | [q] Quit\n")
+    print(" [g, b, s, l] : Select active joint")
+    print(" [w] / [s]    : Nudge angle UP/DOWN by 1 deg")
+    print(" [a] / [d]    : Jump  angle DOWN/UP by 5 deg")
+    print(" [e]          : Emergency Stop")
+    print(" [q]          : Quit")
+    print("="*40 + "\n")
+
+    # Capture the terminal state so we can restore it when we quit
+    fd = sys.stdin.fileno()
+    old_settings = termios.tcgetattr(fd)
 
     try:
+        # Set the terminal to "cbreak" mode (instant character read, but allows Ctrl+C to kill it)
+        tty.setcbreak(fd)
+        _printStatus()
+
         while True:
+            # Check for incoming packets from the robot
             if client.hasData():
                 frame = recvTPacketFrame(client.sock)
                 if frame is None:
-                    print("[second_terminal] Connection closed.")
+                    sys.stdout.write("\r\n[second_terminal] Connection closed.\n")
                     break
                 pkt = _unpackFrame(frame)
                 if pkt:
                     _printPacket(pkt)
 
+            # Check for instant keystrokes from the operator
             rlist, _, _ = select.select([sys.stdin], [], [], 0)
             if rlist:
-                line = sys.stdin.readline()
-                _handleInput(line, client)
+                ch = sys.stdin.read(1).lower()
+                if ch == 'q':
+                    raise KeyboardInterrupt
+                elif ch:
+                    _handleChar(ch, client)
 
             time.sleep(0.02)
 
     except KeyboardInterrupt:
-        print("\n[second_terminal] Exiting.")
+        sys.stdout.write("\r\n[second_terminal] Exiting.\n")
     finally:
+        # Crucial: Return the terminal to normal mode, or else the text will break when you exit!
+        termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
         client.close()
 
 if __name__ == '__main__':
