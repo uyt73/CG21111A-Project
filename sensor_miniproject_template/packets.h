@@ -30,11 +30,10 @@ typedef enum {
     COMMAND_COLOR       = 10,
 
     // --- 4-DOF Arm Commands ---
-    COMMAND_GRIPPER_OPEN  = 12,
-    COMMAND_GRIPPER_CLOSE = 13,
     COMMAND_SET_BASE      = 14,
     COMMAND_SET_SHOULDER  = 15,
-    COMMAND_SET_ELBOW     = 16
+    COMMAND_SET_ELBOW     = 16,
+    COMMAND_SET_GRIPPER   = 17 // Replaced OPEN/CLOSE with direct angle control
 } TCommandType;
 
 typedef enum {

@@ -110,10 +110,11 @@ void stop()              { move(0, DIR_STOP); }
 
 volatile uint16_t servoPulses[4] = {3000, 3000, 3000, 3000}; // Default 90 deg (1500us * 2 ticks)
 
+// --- UPDATED DEFAULT ANGLES ---
 int baseAngle     = 90;
-int shoulderAngle = 90;
+int shoulderAngle = 0;  // Starts folded down
 int elbowAngle    = 90;
-int gripperAngle  = 15; // Set starting angle within the safe 0-30 range
+int gripperAngle  = 5;  // Starts nearly closed
 
 void bareMetalServoInit() {
     // 1. Set NEW pins as outputs
@@ -177,9 +178,10 @@ void setServoAngle(uint8_t index, int angle) {
         if (angle < 0) angle = 0;
         if (angle > 30) angle = 30;
     } else {
-        // Base, Shoulder, Elbow: Standard 10 -> 170 degrees
-        if (angle < 10) angle = 10;
-        if (angle > 170) angle = 170;
+        // Base, Shoulder, Elbow: Opened up to full 0 -> 180 degrees 
+        // to allow the shoulder to hit 0 safely!
+        if (angle < 0) angle = 0;
+        if (angle > 180) angle = 180;
     }
     
     // Standard pulse mapping: 0 deg = 544us, 180 deg = 2400us
@@ -349,16 +351,8 @@ static void handleCommand(const TPacket *cmd) {
             break;
 
         // --- 4-DOF Bare-Metal Arm Commands --- 
-        case COMMAND_GRIPPER_OPEN:
-            gripperAngle -= 5;
-            if (gripperAngle < 0) gripperAngle = 0; // Prevent negative wind-up
-            setServoAngle(3, gripperAngle);
-            sendResponse(RESP_OK, 0);
-            break;
-            
-        case COMMAND_GRIPPER_CLOSE:
-            gripperAngle += 5;
-            if (gripperAngle > 30) gripperAngle = 30; // Prevent positive wind-up
+        case COMMAND_SET_GRIPPER:
+            gripperAngle = cmd->params[0]; // Grab the specific angle from the Pi
             setServoAngle(3, gripperAngle);
             sendResponse(RESP_OK, 0);
             break;
@@ -368,11 +362,13 @@ static void handleCommand(const TPacket *cmd) {
             setServoAngle(0, baseAngle);
             sendResponse(RESP_OK, 0);
             break;
+            
         case COMMAND_SET_SHOULDER:
             shoulderAngle = cmd->params[0]; 
             setServoAngle(1, shoulderAngle);
             sendResponse(RESP_OK, 0);
             break;
+            
         case COMMAND_SET_ELBOW:
             elbowAngle = cmd->params[0]; 
             setServoAngle(2, elbowAngle);
@@ -410,11 +406,11 @@ void setup() {
     bareMetalServoInit();
     setServoAngle(0, baseAngle);     // Index 0: Base
     delay(300);
-    setServoAngle(1, shoulderAngle); // Index 1: Shoulder
+    setServoAngle(1, shoulderAngle); // Index 1: Shoulder (0 degrees)
     delay(300);
     setServoAngle(2, elbowAngle);    // Index 2: Elbow
     delay(300);
-    setServoAngle(3, gripperAngle);  // Index 3: Gripper
+    setServoAngle(3, gripperAngle);  // Index 3: Gripper (5 degrees)
 
     // 6. Ensure all motors start stopped
     stop();

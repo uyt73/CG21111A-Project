@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 CG2111A Alex Robot - Integrated Pi Interface
-Features: Auto-Reconnect Brownout Protection
+Features: Auto-Reconnect Brownout Protection, Parameterized Arm Controls
 """
 
 import struct
@@ -172,25 +172,50 @@ def handleCameraCommand():
 # MAIN INTERFACE
 # ----------------------------------------------------------------
 def handleUserInput(line):
-    if line in ['w','s','a','d','h','+','-','c','p'] and isEstopActive():
+    # Split the input. E.g., "g 5" becomes parts[0] = 'g', parts[1] = '5'
+    parts = line.split()
+    if not parts: return
+    cmd = parts[0]
+
+    if isEstopActive() and cmd != 'r':
         print("Refused: E-Stop is active. Press 'r' to reset.")
         return
 
-    if line == 'r': sendCommand(COMMAND_CLEAR_ESTOP)
-    elif line == 'e': sendCommand(COMMAND_ESTOP)
-    elif line == 'c': handleColorCommand()
-    elif line == 'p': handleCameraCommand()
-    elif line == 'w': sendCommand(COMMAND_FORWARD)
-    elif line == 's': sendCommand(COMMAND_BACKWARD)
-    elif line == 'a': sendCommand(COMMAND_TURN_LEFT)
-    elif line == 'd': sendCommand(COMMAND_TURN_RIGHT)
-    elif line == '+': sendCommand(COMMAND_SPEED_UP)
-    elif line == '-': sendCommand(COMMAND_SPEED_DOWN)
-    elif line == 'h': sendCommand(COMMAND_STOP)
-    else: print(f"Unknown command: '{line}'")
+    # --- Standard Commands ---
+    if cmd == 'r': sendCommand(COMMAND_CLEAR_ESTOP)
+    elif cmd == 'e': sendCommand(COMMAND_ESTOP)
+    elif cmd == 'c': handleColorCommand()
+    elif cmd == 'p': handleCameraCommand()
+    elif cmd == 'w': sendCommand(COMMAND_FORWARD)
+    elif cmd == 's' and len(parts) == 1: sendCommand(COMMAND_BACKWARD) # 's' alone is backward
+    elif cmd == 'a': sendCommand(COMMAND_TURN_LEFT)
+    elif cmd == 'd': sendCommand(COMMAND_TURN_RIGHT)
+    elif cmd == '+': sendCommand(COMMAND_SPEED_UP)
+    elif cmd == '-': sendCommand(COMMAND_SPEED_DOWN)
+    elif cmd == 'h': sendCommand(COMMAND_STOP)
+
+    # --- Arm Angle Commands (Format: letter angle) ---
+    elif cmd == 'b' and len(parts) > 1: # Base (e.g., "b 90")
+        sendCommand(COMMAND_SET_BASE, params=[int(parts[1])])
+        
+    elif cmd == 's' and len(parts) > 1: # Shoulder (e.g., "s 0")
+        sendCommand(COMMAND_SET_SHOULDER, params=[int(parts[1])])
+        
+    elif cmd == 'l' and len(parts) > 1: # Elbow (e.g., "l 90")
+        sendCommand(COMMAND_SET_ELBOW, params=[int(parts[1])])
+        
+    elif cmd == 'g' and len(parts) > 1: # Gripper (e.g., "g 5")
+        sendCommand(COMMAND_SET_GRIPPER, params=[int(parts[1])])
+        
+    else: 
+        print(f"Unknown command format: '{line}'")
+
 
 def runCommandInterface():
-    print("Controls: [w/s/a/d] Move | [h] Stop | [+/-] Speed | [c/p] Sensors | [e] E-Stop | [r] Reset")
+    print("="*70)
+    print("Controls: [w/s/a/d] Move  | [h] Stop      | [c/p] Sensors | [e/r] E-Stop")
+    print("Arm:      [b <deg>] Base  | [s <deg>] Shld| [l <deg>] Elbw| [g <deg>] Grip")
+    print("="*70)
     while True:
         try:
             relay.checkSecondTerminal(_ser)
